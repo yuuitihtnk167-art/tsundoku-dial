@@ -14,7 +14,6 @@ test("GitHub Pages用の静的アプリを生成する", async () => {
 
   assert.match(html, /<title>積読ダイヤル \| 表紙から育てる本棚<\/title>/);
   assert.match(html, /(?:src|href)="\/tsundoku-dial\/assets\//);
-  assert.match(app, /capture="environment"/);
   assert.match(app, /mediaDevices\.getUserMedia/);
   assert.match(app, /video\.srcObject = stream/);
   assert.match(app, /onCanPlay=\{\(\) => setCameraReady\(true\)\}/);
@@ -24,6 +23,8 @@ test("GitHub Pages用の静的アプリを生成する", async () => {
   assert.match(app, /onPointerDown=\{\(event\) => startCropDrag\(event, "move"\)\}/);
   assert.match(app, /cropHandles\.map/);
   assert.match(app, /minimumCropSize = 8/);
+  assert.doesNotMatch(app, /type="file"|標準カメラ|fileInputRef|choosePhoto/);
+  assert.doesNotMatch(app, /type="range"|crop-controls|updateCrop/);
   assert.doesNotMatch(app, /fetch\(|\/api\//);
   assert.match(app, /maximum-scale=5\.0, user-scalable=yes/);
   assert.match(storage, /indexedDB\.open/);
@@ -44,6 +45,6 @@ test("GitHub Pages用の静的アプリを生成する", async () => {
     parsedManifest.icons.map(({ sizes }) => sizes),
     ["192x192", "512x512"],
   );
-  assert.match(serviceWorker, /tsundoku-dial-v5/);
+  assert.match(serviceWorker, /tsundoku-dial-v6/);
   assert.match(serviceWorker, /caches\.delete/);
 });
