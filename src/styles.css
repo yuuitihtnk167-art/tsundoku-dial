@@ -62,6 +62,8 @@ button { color: inherit; }
 .section-heading > p { color: var(--muted); font-size: 13px; }
 .book-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 34px 22px; }
 .book-card { border: 0; background: transparent; padding: 0; text-align: left; cursor: pointer; min-width: 0; touch-action: pan-y; user-select: none; -webkit-touch-callout: none; }
+.book-card.is-selected { touch-action: none; }
+.book-card.is-selected .cover-wrap { outline: 3px solid var(--lime); outline-offset: 4px; transform: translateY(-4px); }
 .book-card.is-dragging { opacity: .28; }
 .cover-wrap { display: block; aspect-ratio: 2 / 3; overflow: hidden; border-radius: 3px 10px 10px 3px; background: #d9d7cd; box-shadow: -5px 5px 0 #c7c4b9, 0 16px 30px rgba(33,40,35,.16); transition: transform .22s ease, box-shadow .22s ease; }
 .book-card:hover .cover-wrap, .book-card:focus-visible .cover-wrap { transform: translateY(-7px) rotate(-1deg); box-shadow: -5px 6px 0 #c7c4b9, 0 22px 36px rgba(33,40,35,.22); }
@@ -74,6 +76,7 @@ button { color: inherit; }
 .delete-drop-zone { position: fixed; z-index: 60; left: 50%; bottom: max(18px, env(safe-area-inset-bottom)); display: flex; align-items: center; justify-content: center; gap: 9px; width: min(420px, calc(100% - 32px)); min-height: 64px; border: 2px dashed rgba(255,255,255,.72); border-radius: 18px; background: #873c31; color: white; font-weight: 700; pointer-events: auto; transform: translateX(-50%); box-shadow: 0 16px 42px rgba(58,20,15,.34); }
 .delete-drop-zone span { display: grid; place-items: center; width: 28px; height: 28px; border: 2px solid currentColor; border-radius: 50%; font-size: 20px; line-height: 1; }
 .delete-drop-zone.is-active { background: #b72f22; border-style: solid; transform: translateX(-50%) scale(1.03); }
+.book-selection-hint { position: fixed; z-index: 59; left: 50%; bottom: max(18px, env(safe-area-inset-bottom)); width: min(520px, calc(100% - 32px)); margin: 0; padding: 13px 18px; border-radius: 14px; background: var(--forest); color: white; font-size: 13px; line-height: 1.55; text-align: center; pointer-events: none; transform: translateX(-50%); box-shadow: 0 14px 34px rgba(10,24,17,.26); }
 .empty-state { text-align: center; padding: 54px 20px; }
 .empty-state h3 { font-family: Georgia, "Yu Mincho", serif; font-size: 25px; font-weight: 500; margin: 24px 0 8px; }
 .empty-state p { color: var(--muted); margin: 0 0 24px; }
