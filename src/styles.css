@@ -61,12 +61,19 @@ button { color: inherit; }
 .section-heading h2 { margin: 0; font-family: Georgia, "Yu Mincho", serif; font-size: 34px; font-weight: 500; }
 .section-heading > p { color: var(--muted); font-size: 13px; }
 .book-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 34px 22px; }
-.book-card { border: 0; background: transparent; padding: 0; text-align: left; cursor: pointer; min-width: 0; }
+.book-card { border: 0; background: transparent; padding: 0; text-align: left; cursor: pointer; min-width: 0; touch-action: pan-y; user-select: none; -webkit-touch-callout: none; }
+.book-card.is-dragging { opacity: .28; }
 .cover-wrap { display: block; aspect-ratio: 2 / 3; overflow: hidden; border-radius: 3px 10px 10px 3px; background: #d9d7cd; box-shadow: -5px 5px 0 #c7c4b9, 0 16px 30px rgba(33,40,35,.16); transition: transform .22s ease, box-shadow .22s ease; }
 .book-card:hover .cover-wrap, .book-card:focus-visible .cover-wrap { transform: translateY(-7px) rotate(-1deg); box-shadow: -5px 6px 0 #c7c4b9, 0 22px 36px rgba(33,40,35,.22); }
 .cover-wrap img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .book-card strong { display: block; margin-top: 17px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 15px; }
 .book-card small { display: block; color: var(--muted); margin-top: 5px; font-size: 11px; }
+.book-drag-preview { position: fixed; z-index: 61; width: 116px; padding: 7px; border-radius: 10px; background: #fffdf8; pointer-events: none; transform: translate(-50%, -50%) rotate(-2deg); box-shadow: 0 20px 46px rgba(10,24,17,.35); }
+.book-drag-preview img { display: block; width: 100%; aspect-ratio: 2 / 3; object-fit: cover; border-radius: 3px 7px 7px 3px; }
+.book-drag-preview strong { display: block; margin-top: 6px; overflow: hidden; font-size: 11px; white-space: nowrap; text-overflow: ellipsis; }
+.delete-drop-zone { position: fixed; z-index: 60; left: 50%; bottom: max(18px, env(safe-area-inset-bottom)); display: flex; align-items: center; justify-content: center; gap: 9px; width: min(420px, calc(100% - 32px)); min-height: 64px; border: 2px dashed rgba(255,255,255,.72); border-radius: 18px; background: #873c31; color: white; font-weight: 700; pointer-events: auto; transform: translateX(-50%); box-shadow: 0 16px 42px rgba(58,20,15,.34); }
+.delete-drop-zone span { display: grid; place-items: center; width: 28px; height: 28px; border: 2px solid currentColor; border-radius: 50%; font-size: 20px; line-height: 1; }
+.delete-drop-zone.is-active { background: #b72f22; border-style: solid; transform: translateX(-50%) scale(1.03); }
 .empty-state { text-align: center; padding: 54px 20px; }
 .empty-state h3 { font-family: Georgia, "Yu Mincho", serif; font-size: 25px; font-weight: 500; margin: 24px 0 8px; }
 .empty-state p { color: var(--muted); margin: 0 0 24px; }
@@ -174,6 +181,7 @@ button { color: inherit; }
   .section-heading { align-items: start; }
   .section-heading h2 { font-size: 28px; }
   .book-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 30px 18px; }
+  .book-drag-preview { width: 96px; }
   .add-dialog form { padding: 22px 16px; }
   .detail-card { grid-template-columns: 1fr; gap: 28px; padding: 54px 22px 28px; }
   .detail-card > img { max-height: 48vh; }

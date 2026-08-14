@@ -16,7 +16,14 @@ import {
   normalizePhoto,
   type Crop,
 } from "./image";
-import { addBook, getBooks, updateBook, type StoredBook } from "./storage";
+import {
+  addBook,
+  deleteBook,
+  getBooks,
+  saveBookOrder,
+  updateBook,
+  type StoredBook,
+} from "./storage";
 
 type Book = StoredBook & {
   coverUrl: string;
@@ -38,6 +45,13 @@ type PreparedShare = {
   file: File;
   source: Blob;
   cropKey: string;
+};
+
+type BookPointerStart = {
+  pointerId: number;
+  bookId: string;
+  x: number;
+  y: number;
 };
 
 const cropHandles: Array<{ handle: CropHandle; label: string }> = [
@@ -84,6 +98,9 @@ export function BookLibrary() {
   const [cameraReady, setCameraReady] = useState(false);
   const [preparedShare, setPreparedShare] = useState<PreparedShare | null>(null);
   const [sharing, setSharing] = useState(false);
+  const [draggingBookId, setDraggingBookId] = useState<string | null>(null);
+  const [dragPosition, setDragPosition] = useState<{ x: number; y: number } | null>(null);
+  const [deleteDropActive, setDeleteDropActive] = useState(false);
   const [title, setTitle] = useState("");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
@@ -92,6 +109,13 @@ export function BookLibrary() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const cameraStreamRef = useRef<MediaStream | null>(null);
   const cropDragRef = useRef<CropDrag | null>(null);
+  const booksRef = useRef<Book[]>([]);
+  const longPressTimerRef = useRef<number | null>(null);
+  const bookPointerStartRef = useRef<BookPointerStart | null>(null);
+  const draggingBookIdRef = useRef<string | null>(null);
+  const deleteDropActiveRef = useRef(false);
+  const lastReorderTargetRef = useRef<string | null>(null);
+  const suppressBookClickRef = useRef(false);
   const coverUrlsRef = useRef<string[]>([]);
   const cropKey = [crop.left, crop.top, crop.right, crop.bottom].join(":");
   const shareFile =
@@ -107,6 +131,7 @@ export function BookLibrary() {
         coverUrlsRef.current.push(coverUrl);
         return { ...book, coverUrl };
       });
+      booksRef.current = nextBooks;
       setBooks(nextBooks);
       setError("");
     } catch (loadError) {
@@ -130,6 +155,11 @@ export function BookLibrary() {
   useEffect(() => () => { if (photoUrl) URL.revokeObjectURL(photoUrl); }, [photoUrl]);
   useEffect(() => () => {
     coverUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+  }, []);
+  useEffect(() => () => {
+    if (longPressTimerRef.current !== null) {
+      window.clearTimeout(longPressTimerRef.current);
+    }
   }, []);
   useEffect(() => stopCamera, [stopCamera]);
   useEffect(() => {
@@ -393,6 +423,139 @@ export function BookLibrary() {
     cropDragRef.current = null;
   }
 
+  function clearLongPressTimer() {
+    if (longPressTimerRef.current === null) return;
+    window.clearTimeout(longPressTimerRef.current);
+    longPressTimerRef.current = null;
+  }
+
+  function setDeleteTarget(active: boolean) {
+    if (deleteDropActiveRef.current === active) return;
+    deleteDropActiveRef.current = active;
+    setDeleteDropActive(active);
+  }
+
+  function startBookPress(event: ReactPointerEvent<HTMLButtonElement>, bookId: string) {
+    if (!event.isPrimary || (event.pointerType === "mouse" && event.button !== 0)) return;
+    clearLongPressTimer();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    bookPointerStartRef.current = {
+      pointerId: event.pointerId,
+      bookId,
+      x: event.clientX,
+      y: event.clientY,
+    };
+    longPressTimerRef.current = window.setTimeout(() => {
+      draggingBookIdRef.current = bookId;
+      lastReorderTargetRef.current = bookId;
+      suppressBookClickRef.current = true;
+      setDraggingBookId(bookId);
+      setDragPosition({ x: event.clientX, y: event.clientY });
+      navigator.vibrate?.(25);
+    }, 450);
+  }
+
+  function moveBook(event: ReactPointerEvent<HTMLButtonElement>) {
+    const pointerStart = bookPointerStartRef.current;
+    if (!pointerStart || pointerStart.pointerId !== event.pointerId) return;
+    const distance = Math.hypot(
+      event.clientX - pointerStart.x,
+      event.clientY - pointerStart.y,
+    );
+    if (!draggingBookIdRef.current && distance > 10) {
+      clearLongPressTimer();
+      return;
+    }
+
+    const draggedId = draggingBookIdRef.current;
+    if (!draggedId) return;
+    event.preventDefault();
+    setDragPosition({ x: event.clientX, y: event.clientY });
+
+    const element = document.elementFromPoint(
+      event.clientX,
+      event.clientY,
+    ) as HTMLElement | null;
+    const overDelete = Boolean(element?.closest(".delete-drop-zone"));
+    setDeleteTarget(overDelete);
+    if (overDelete) return;
+
+    const targetId = element?.closest<HTMLElement>("[data-book-id]")?.dataset.bookId;
+    if (!targetId || targetId === draggedId) {
+      lastReorderTargetRef.current = null;
+      return;
+    }
+    if (lastReorderTargetRef.current === targetId) return;
+    lastReorderTargetRef.current = targetId;
+
+    setBooks((current) => {
+      const draggedIndex = current.findIndex((book) => book.id === draggedId);
+      const targetIndex = current.findIndex((book) => book.id === targetId);
+      if (draggedIndex < 0 || targetIndex < 0) return current;
+      const next = [...current];
+      const [draggedBook] = next.splice(draggedIndex, 1);
+      next.splice(targetIndex, 0, draggedBook);
+      booksRef.current = next;
+      return next;
+    });
+  }
+
+  async function removeDraggedBook(bookId: string) {
+    const book = booksRef.current.find((item) => item.id === bookId);
+    try {
+      await deleteBook(bookId);
+      if (book) URL.revokeObjectURL(book.coverUrl);
+      const next = booksRef.current.filter((item) => item.id !== bookId);
+      booksRef.current = next;
+      setBooks(next);
+      setError("");
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : "本を削除できませんでした。");
+    }
+  }
+
+  async function persistCurrentBookOrder() {
+    try {
+      await saveBookOrder(booksRef.current.map((book) => book.id));
+      setError("");
+    } catch (orderError) {
+      setError(orderError instanceof Error ? orderError.message : "並び順を保存できませんでした。");
+    }
+  }
+
+  function finishBookPress(
+    event: ReactPointerEvent<HTMLButtonElement>,
+    allowDelete: boolean,
+  ) {
+    const pointerStart = bookPointerStartRef.current;
+    if (!pointerStart || pointerStart.pointerId !== event.pointerId) return;
+    clearLongPressTimer();
+    bookPointerStartRef.current = null;
+
+    const draggedId = draggingBookIdRef.current;
+    if (!draggedId) return;
+    const shouldDelete = allowDelete && deleteDropActiveRef.current;
+    draggingBookIdRef.current = null;
+    lastReorderTargetRef.current = null;
+    setDeleteTarget(false);
+    setDraggingBookId(null);
+    setDragPosition(null);
+    window.setTimeout(() => {
+      suppressBookClickRef.current = false;
+    }, 0);
+
+    if (shouldDelete) {
+      void removeDraggedBook(draggedId);
+    } else {
+      void persistCurrentBookOrder();
+    }
+  }
+
+  function openBook(book: Book) {
+    if (suppressBookClickRef.current) return;
+    setSelectedBook(book);
+  }
+
   async function shareCover() {
     if (!shareFile) {
       setError("共有する画像を準備しています。少し待ってからもう一度お試しください。");
@@ -443,12 +606,15 @@ export function BookLibrary() {
       coverUrlsRef.current.push(coverUrl);
       const nextBook = { ...storedBook, coverUrl };
       setBooks((current) => {
-        if (!editingBookId) return [nextBook, ...current];
-        return current.map((book) => {
-          if (book.id !== editingBookId) return book;
-          URL.revokeObjectURL(book.coverUrl);
-          return nextBook;
-        });
+        const next = !editingBookId
+          ? [nextBook, ...current]
+          : current.map((book) => {
+            if (book.id !== editingBookId) return book;
+            URL.revokeObjectURL(book.coverUrl);
+            return nextBook;
+          });
+        booksRef.current = next;
+        return next;
       });
       closeAddDialog();
     } catch (saveError) {
@@ -487,7 +653,7 @@ export function BookLibrary() {
             <p className="eyebrow">BOOKSHELF</p>
             <h2 id="shelf-title">わたしの本棚</h2>
           </div>
-          <p>新しく積んだ順</p>
+          <p>長押しで並べ替え・削除</p>
         </div>
 
         {error && <p className="error-message" role="alert">{error}</p>}
@@ -503,7 +669,19 @@ export function BookLibrary() {
         ) : (
           <div className="book-grid">
             {books.map((book, index) => (
-              <button className="book-card" type="button" key={book.id} onClick={() => setSelectedBook(book)}>
+              <button
+                className={book.id === draggingBookId ? "book-card is-dragging" : "book-card"}
+                type="button"
+                key={book.id}
+                data-book-id={book.id}
+                aria-pressed={book.id === draggingBookId}
+                onClick={() => openBook(book)}
+                onContextMenu={(event) => event.preventDefault()}
+                onPointerDown={(event) => startBookPress(event, book.id)}
+                onPointerMove={moveBook}
+                onPointerUp={(event) => finishBookPress(event, true)}
+                onPointerCancel={(event) => finishBookPress(event, false)}
+              >
                 <span className="cover-wrap">
                   <img src={book.coverUrl} alt={`${book.title}の表紙`} loading={index > 5 ? "lazy" : "eager"} />
                 </span>
@@ -514,6 +692,31 @@ export function BookLibrary() {
           </div>
         )}
       </section>
+
+      {draggingBookId && dragPosition && (() => {
+        const draggedBook = books.find((book) => book.id === draggingBookId);
+        if (!draggedBook) return null;
+        return (
+          <div
+            className="book-drag-preview"
+            style={{ left: dragPosition.x, top: dragPosition.y }}
+            aria-hidden="true"
+          >
+            <img src={draggedBook.coverUrl} alt="" />
+            <strong>{draggedBook.title}</strong>
+          </div>
+        );
+      })()}
+      {draggingBookId && (
+        <div
+          className={deleteDropActive ? "delete-drop-zone is-active" : "delete-drop-zone"}
+          role="status"
+          aria-live="polite"
+        >
+          <span aria-hidden="true">×</span>
+          {deleteDropActive ? "ここで離すと削除します" : "ここへ移動して削除"}
+        </div>
+      )}
 
       <dialog
         className="add-dialog"

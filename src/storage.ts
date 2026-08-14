@@ -6,6 +6,7 @@ export type StoredBook = {
   notes: string;
   isbn: string | null;
   createdAt: string;
+  sortOrder?: number;
   cover: Blob;
   original?: Blob;
   crop?: Crop;
@@ -44,7 +45,11 @@ export async function getBooks() {
   try {
     const transaction = database.transaction(BOOK_STORE, "readonly");
     const records = await requestResult(transaction.objectStore(BOOK_STORE).getAll() as IDBRequest<StoredBook[]>);
-    return records.sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+    return records.sort((left, right) => {
+      const leftOrder = left.sortOrder ?? Date.parse(left.createdAt);
+      const rightOrder = right.sortOrder ?? Date.parse(right.createdAt);
+      return rightOrder - leftOrder;
+    });
   } finally {
     database.close();
   }
@@ -54,20 +59,29 @@ export async function addBook(
   input: Pick<StoredBook, "title" | "notes" | "cover" | "original" | "crop">,
 ) {
   const database = await openDatabase();
-  const book: StoredBook = {
-    id: crypto.randomUUID(),
-    title: input.title,
-    notes: input.notes,
-    isbn: null,
-    createdAt: new Date().toISOString(),
-    cover: input.cover,
-    original: input.original,
-    crop: input.crop,
-  };
-
   try {
     const transaction = database.transaction(BOOK_STORE, "readwrite");
-    await requestResult(transaction.objectStore(BOOK_STORE).add(book));
+    const store = transaction.objectStore(BOOK_STORE);
+    const records = await requestResult(
+      store.getAll() as IDBRequest<StoredBook[]>,
+    );
+    const highestOrder = records.reduce(
+      (highest, record) =>
+        Math.max(highest, record.sortOrder ?? Date.parse(record.createdAt)),
+      Date.now(),
+    );
+    const book: StoredBook = {
+      id: crypto.randomUUID(),
+      title: input.title,
+      notes: input.notes,
+      isbn: null,
+      createdAt: new Date().toISOString(),
+      sortOrder: highestOrder + 1,
+      cover: input.cover,
+      original: input.original,
+      crop: input.crop,
+    };
+    await requestResult(store.add(book));
     return book;
   } finally {
     database.close();
@@ -89,6 +103,44 @@ export async function updateBook(
     const book: StoredBook = { ...current, ...input };
     await requestResult(store.put(book));
     return book;
+  } finally {
+    database.close();
+  }
+}
+
+export async function saveBookOrder(bookIds: string[]) {
+  const database = await openDatabase();
+  try {
+    const transaction = database.transaction(BOOK_STORE, "readwrite");
+    const store = transaction.objectStore(BOOK_STORE);
+    const records = await requestResult(
+      store.getAll() as IDBRequest<StoredBook[]>,
+    );
+    const recordsById = new Map(records.map((book) => [book.id, book]));
+    const highestOrder = records.reduce(
+      (highest, record) =>
+        Math.max(highest, record.sortOrder ?? Date.parse(record.createdAt)),
+      Date.now(),
+    );
+
+    await Promise.all(bookIds.map((id, index) => {
+      const book = recordsById.get(id);
+      if (!book) return Promise.resolve();
+      return requestResult(store.put({
+        ...book,
+        sortOrder: highestOrder + bookIds.length - index,
+      }));
+    }));
+  } finally {
+    database.close();
+  }
+}
+
+export async function deleteBook(id: string) {
+  const database = await openDatabase();
+  try {
+    const transaction = database.transaction(BOOK_STORE, "readwrite");
+    await requestResult(transaction.objectStore(BOOK_STORE).delete(id));
   } finally {
     database.close();
   }
