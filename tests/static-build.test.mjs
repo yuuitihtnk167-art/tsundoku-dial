@@ -15,11 +15,13 @@ test("GitHub Pages用の静的アプリを生成する", async () => {
   assert.match(html, /(?:src|href)="\/tsundoku-dial\/assets\//);
   assert.match(app, /capture="environment"/);
   assert.doesNotMatch(app, /fetch\(|\/api\//);
+  assert.match(app, /maximum-scale=5\.0, user-scalable=yes/);
   assert.match(storage, /indexedDB\.open/);
   assert.match(storage, /createObjectStore\(BOOK_STORE/);
   assert.match(html, /rel="manifest" href="\/tsundoku-dial\/manifest\.webmanifest"/);
   assert.match(html, /rel="apple-touch-icon"/);
   assert.doesNotMatch(html, /\/src\/main\.tsx/);
+  assert.match(html, /maximum-scale=1\.0, user-scalable=no/);
 
   const parsedManifest = JSON.parse(manifest);
   assert.equal(parsedManifest.display, "standalone");
@@ -28,6 +30,6 @@ test("GitHub Pages用の静的アプリを生成する", async () => {
     parsedManifest.icons.map(({ sizes }) => sizes),
     ["192x192", "512x512"],
   );
-  assert.match(serviceWorker, /tsundoku-dial-v1/);
+  assert.match(serviceWorker, /tsundoku-dial-v2/);
   assert.match(serviceWorker, /caches\.delete/);
 });

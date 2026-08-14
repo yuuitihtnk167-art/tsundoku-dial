@@ -10,6 +10,8 @@ type Book = Omit<StoredBook, "cover"> & {
 type Crop = { left: number; top: number; right: number; bottom: number };
 
 const initialCrop: Crop = { left: 4, top: 4, right: 96, bottom: 96 };
+const lockedViewport = "width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no";
+const detailViewport = "width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes";
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("ja-JP", {
@@ -84,6 +86,15 @@ export function BookLibrary() {
     if (!dialog) return;
     if (selectedBook && !dialog.open) dialog.showModal();
     if (!selectedBook && dialog.open) dialog.close();
+  }, [selectedBook]);
+  useEffect(() => {
+    const viewport = document.querySelector<HTMLMetaElement>('meta[name="viewport"]');
+    if (!viewport) return;
+
+    viewport.content = selectedBook ? detailViewport : lockedViewport;
+    return () => {
+      viewport.content = lockedViewport;
+    };
   }, [selectedBook]);
 
   function openAddDialog() {
