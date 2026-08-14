@@ -1,5 +1,7 @@
 import type { Crop } from "./image";
 
+export type BookCategory = "unclassified" | "reading" | "reread" | "owned" | "read";
+
 export type StoredBook = {
   id: string;
   title: string;
@@ -7,6 +9,7 @@ export type StoredBook = {
   isbn: string | null;
   createdAt: string;
   sortOrder?: number;
+  category?: BookCategory;
   cover: Blob;
   original?: Blob;
   crop?: Crop;
@@ -77,6 +80,7 @@ export async function addBook(
       isbn: null,
       createdAt: new Date().toISOString(),
       sortOrder: highestOrder + 1,
+      category: "unclassified",
       cover: input.cover,
       original: input.original,
       crop: input.crop,
@@ -101,6 +105,23 @@ export async function updateBook(
     if (!current) throw new Error("更新する本が見つかりませんでした。");
 
     const book: StoredBook = { ...current, ...input };
+    await requestResult(store.put(book));
+    return book;
+  } finally {
+    database.close();
+  }
+}
+
+export async function updateBookCategory(id: string, category: BookCategory) {
+  const database = await openDatabase();
+  try {
+    const transaction = database.transaction(BOOK_STORE, "readwrite");
+    const store = transaction.objectStore(BOOK_STORE);
+    const current = await requestResult(
+      store.get(id) as IDBRequest<StoredBook | undefined>,
+    );
+    if (!current) throw new Error("分類する本が見つかりませんでした。");
+    const book: StoredBook = { ...current, category };
     await requestResult(store.put(book));
     return book;
   } finally {
