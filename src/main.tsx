@@ -11,3 +11,13 @@ createRoot(root).render(
     <BookLibrary />
   </StrictMode>,
 );
+
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    void navigator.serviceWorker
+      .register("/tsundoku-dial/sw.js")
+      .catch((error: unknown) => {
+        console.error("Service Workerの登録に失敗しました。", error);
+      });
+  });
+}
