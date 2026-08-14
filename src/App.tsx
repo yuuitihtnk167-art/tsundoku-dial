@@ -34,6 +34,12 @@ type CropDrag = {
   stageHeight: number;
 };
 
+type PreparedShare = {
+  file: File;
+  source: Blob;
+  cropKey: string;
+};
+
 const cropHandles: Array<{ handle: CropHandle; label: string }> = [
   { handle: "nw", label: "左上を調整" },
   { handle: "n", label: "上辺を調整" },
@@ -76,6 +82,8 @@ export function BookLibrary() {
   const [cropMessage, setCropMessage] = useState("");
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraReady, setCameraReady] = useState(false);
+  const [preparedShare, setPreparedShare] = useState<PreparedShare | null>(null);
+  const [sharing, setSharing] = useState(false);
   const [title, setTitle] = useState("");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
@@ -85,6 +93,11 @@ export function BookLibrary() {
   const cameraStreamRef = useRef<MediaStream | null>(null);
   const cropDragRef = useRef<CropDrag | null>(null);
   const coverUrlsRef = useRef<string[]>([]);
+  const cropKey = [crop.left, crop.top, crop.right, crop.bottom].join(":");
+  const shareFile =
+    preparedShare?.source === photo && preparedShare.cropKey === cropKey
+      ? preparedShare.file
+      : null;
 
   const loadBooks = useCallback(async () => {
     try {
@@ -167,6 +180,34 @@ export function BookLibrary() {
       viewport.content = lockedViewport;
     };
   }, [selectedBook]);
+  useEffect(() => {
+    let cancelled = false;
+    if (!photo) return;
+
+    const timer = window.setTimeout(() => {
+      void cropPhoto(photo, crop)
+        .then((cover) => {
+          if (cancelled) return;
+          setPreparedShare({
+            file: new File(
+              [cover],
+              "book-cover.jpg",
+              { type: cover.type || "image/jpeg" },
+            ),
+            source: photo,
+            cropKey,
+          });
+        })
+        .catch(() => {
+          if (!cancelled) setError("共有用の画像を準備できませんでした。");
+        });
+    }, 180);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [crop, cropKey, photo]);
 
   function openAddDialog() {
     stopCamera();
@@ -350,6 +391,32 @@ export function BookLibrary() {
   function finishCropDrag(event: ReactPointerEvent<HTMLDivElement>) {
     if (cropDragRef.current?.pointerId !== event.pointerId) return;
     cropDragRef.current = null;
+  }
+
+  async function shareCover() {
+    if (!shareFile) {
+      setError("共有する画像を準備しています。少し待ってからもう一度お試しください。");
+      return;
+    }
+    if (!navigator.share || (navigator.canShare && !navigator.canShare({ files: [shareFile] }))) {
+      setError("この端末またはブラウザは画像の共有に対応していません。");
+      return;
+    }
+
+    setSharing(true);
+    setError("");
+    try {
+      await navigator.share({
+        files: [shareFile],
+        title: "本の表紙",
+        text: "この本の表紙を分析してください。",
+      });
+    } catch (shareError) {
+      if (shareError instanceof DOMException && shareError.name === "AbortError") return;
+      setError("画像を共有できませんでした。もう一度お試しください。");
+    } finally {
+      setSharing(false);
+    }
   }
 
   async function saveBook(event: FormEvent) {
@@ -554,6 +621,20 @@ export function BookLibrary() {
                   void startCamera();
                 }}>ガイド付きで撮り直す</button>
               </div>
+            </div>
+          )}
+
+          {photo && (
+            <div className="share-panel">
+              <button
+                className="share-button"
+                type="button"
+                onClick={() => void shareCover()}
+                disabled={!shareFile || sharing}
+              >
+                {sharing ? "共有画面を開いています…" : shareFile ? "画像を共有" : "共有画像を準備中…"}
+              </button>
+              <small>共有先でChatGPTを選ぶと、表紙画像を渡せます。</small>
             </div>
           )}
 

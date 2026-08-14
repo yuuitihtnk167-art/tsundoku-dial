@@ -23,6 +23,10 @@ test("GitHub Pages用の静的アプリを生成する", async () => {
   assert.match(app, /onPointerDown=\{\(event\) => startCropDrag\(event, "move"\)\}/);
   assert.match(app, /cropHandles\.map/);
   assert.match(app, /minimumCropSize = 8/);
+  assert.match(app, /navigator\.share/);
+  assert.match(app, /navigator\.canShare/);
+  assert.match(app, /new File\(/);
+  assert.match(app, /共有先でChatGPTを選ぶ/);
   assert.doesNotMatch(app, /type="file"|標準カメラ|fileInputRef|choosePhoto/);
   assert.doesNotMatch(app, /type="range"|crop-controls|updateCrop/);
   assert.doesNotMatch(app, /fetch\(|\/api\//);
@@ -45,6 +49,6 @@ test("GitHub Pages用の静的アプリを生成する", async () => {
     parsedManifest.icons.map(({ sizes }) => sizes),
     ["192x192", "512x512"],
   );
-  assert.match(serviceWorker, /tsundoku-dial-v6/);
+  assert.match(serviceWorker, /tsundoku-dial-v7/);
   assert.match(serviceWorker, /caches\.delete/);
 });
