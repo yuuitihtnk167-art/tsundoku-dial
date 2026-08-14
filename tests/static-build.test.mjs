@@ -27,6 +27,11 @@ test("GitHub Pages用の静的アプリを生成する", async () => {
   assert.match(app, /navigator\.canShare/);
   assert.match(app, /new File\(/);
   assert.match(app, /共有先でChatGPTを選ぶ/);
+  assert.match(app, /setTimeout\(\(\) => \{[\s\S]*setDraggingBookId\(bookId\)/);
+  assert.match(app, /data-book-id=\{book\.id\}/);
+  assert.match(app, /delete-drop-zone/);
+  assert.match(app, /saveBookOrder/);
+  assert.match(app, /deleteBook/);
   assert.doesNotMatch(app, /type="file"|標準カメラ|fileInputRef|choosePhoto/);
   assert.doesNotMatch(app, /type="range"|crop-controls|updateCrop/);
   assert.doesNotMatch(app, /fetch\(|\/api\//);
@@ -35,6 +40,9 @@ test("GitHub Pages用の静的アプリを生成する", async () => {
   assert.match(storage, /createObjectStore\(BOOK_STORE/);
   assert.match(storage, /original\?: Blob/);
   assert.match(storage, /export async function updateBook/);
+  assert.match(storage, /sortOrder\?: number/);
+  assert.match(storage, /export async function saveBookOrder/);
+  assert.match(storage, /export async function deleteBook/);
   assert.match(image, /function detectBounds/);
   assert.match(image, /normalizePhoto/);
   assert.match(html, /rel="manifest" href="\/tsundoku-dial\/manifest\.webmanifest"/);
@@ -49,6 +57,6 @@ test("GitHub Pages用の静的アプリを生成する", async () => {
     parsedManifest.icons.map(({ sizes }) => sizes),
     ["192x192", "512x512"],
   );
-  assert.match(serviceWorker, /tsundoku-dial-v7/);
+  assert.match(serviceWorker, /tsundoku-dial-v8/);
   assert.match(serviceWorker, /caches\.delete/);
 });
