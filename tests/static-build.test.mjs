@@ -16,8 +16,14 @@ test("GitHub Pages用の静的アプリを生成する", async () => {
   assert.match(html, /(?:src|href)="\/tsundoku-dial\/assets\//);
   assert.match(app, /capture="environment"/);
   assert.match(app, /mediaDevices\.getUserMedia/);
+  assert.match(app, /video\.srcObject = stream/);
+  assert.match(app, /onCanPlay=\{\(\) => setCameraReady\(true\)\}/);
+  assert.doesNotMatch(app, /setTimeout\(\(\) => \{\s*if \(!videoRef\.current\) return/);
   assert.match(app, /editSelectedCover/);
   assert.match(app, /detectBookCrop/);
+  assert.match(app, /onPointerDown=\{\(event\) => startCropDrag\(event, "move"\)\}/);
+  assert.match(app, /cropHandles\.map/);
+  assert.match(app, /minimumCropSize = 8/);
   assert.doesNotMatch(app, /fetch\(|\/api\//);
   assert.match(app, /maximum-scale=5\.0, user-scalable=yes/);
   assert.match(storage, /indexedDB\.open/);
@@ -38,6 +44,6 @@ test("GitHub Pages用の静的アプリを生成する", async () => {
     parsedManifest.icons.map(({ sizes }) => sizes),
     ["192x192", "512x512"],
   );
-  assert.match(serviceWorker, /tsundoku-dial-v3/);
+  assert.match(serviceWorker, /tsundoku-dial-v5/);
   assert.match(serviceWorker, /caches\.delete/);
 });
