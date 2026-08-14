@@ -1,3 +1,5 @@
+import type { Crop } from "./image";
+
 export type StoredBook = {
   id: string;
   title: string;
@@ -5,6 +7,8 @@ export type StoredBook = {
   isbn: string | null;
   createdAt: string;
   cover: Blob;
+  original?: Blob;
+  crop?: Crop;
 };
 
 const DATABASE_NAME = "tsundoku-dial";
@@ -46,7 +50,9 @@ export async function getBooks() {
   }
 }
 
-export async function addBook(input: Pick<StoredBook, "title" | "notes" | "cover">) {
+export async function addBook(
+  input: Pick<StoredBook, "title" | "notes" | "cover" | "original" | "crop">,
+) {
   const database = await openDatabase();
   const book: StoredBook = {
     id: crypto.randomUUID(),
@@ -55,11 +61,33 @@ export async function addBook(input: Pick<StoredBook, "title" | "notes" | "cover
     isbn: null,
     createdAt: new Date().toISOString(),
     cover: input.cover,
+    original: input.original,
+    crop: input.crop,
   };
 
   try {
     const transaction = database.transaction(BOOK_STORE, "readwrite");
     await requestResult(transaction.objectStore(BOOK_STORE).add(book));
+    return book;
+  } finally {
+    database.close();
+  }
+}
+
+export async function updateBook(
+  input: Pick<StoredBook, "id" | "title" | "notes" | "cover" | "original" | "crop">,
+) {
+  const database = await openDatabase();
+  try {
+    const transaction = database.transaction(BOOK_STORE, "readwrite");
+    const store = transaction.objectStore(BOOK_STORE);
+    const current = await requestResult(
+      store.get(input.id) as IDBRequest<StoredBook | undefined>,
+    );
+    if (!current) throw new Error("更新する本が見つかりませんでした。");
+
+    const book: StoredBook = { ...current, ...input };
+    await requestResult(store.put(book));
     return book;
   } finally {
     database.close();
