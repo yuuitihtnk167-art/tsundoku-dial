@@ -1,0 +1,12 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "積読ダイヤルを起動",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "npm run dev -- --host 127.0.0.1 --port 5173 --open /tsundoku-dial/",
+      "cwd": "${workspaceFolder}"
+    }
+  ]
+}
