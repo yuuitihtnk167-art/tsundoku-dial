@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  ChangeEvent,
   FormEvent,
   PointerEvent as ReactPointerEvent,
   useCallback,
@@ -82,7 +81,6 @@ export function BookLibrary() {
   const [saving, setSaving] = useState(false);
   const addDialogRef = useRef<HTMLDialogElement>(null);
   const detailDialogRef = useRef<HTMLDialogElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const cameraStreamRef = useRef<MediaStream | null>(null);
   const cropDragRef = useRef<CropDrag | null>(null);
@@ -221,17 +219,10 @@ export function BookLibrary() {
     }
   }
 
-  function choosePhoto(event: ChangeEvent<HTMLInputElement>) {
-    const nextPhoto = event.target.files?.[0];
-    if (!nextPhoto) return;
-    void applyPhoto(nextPhoto);
-    event.target.value = "";
-  }
-
   async function startCamera() {
     setError("");
     if (!navigator.mediaDevices?.getUserMedia) {
-      setError("この端末ではアプリ内カメラを利用できません。写真を選択してください。");
+      setError("この端末またはブラウザでは、ガイド付きカメラを利用できません。");
       return;
     }
 
@@ -250,7 +241,7 @@ export function BookLibrary() {
       setCameraActive(true);
     } catch {
       stopCamera();
-      setError("カメラを開始できませんでした。権限を確認するか、写真を選択してください。");
+      setError("カメラを開始できませんでした。ブラウザのカメラ権限を確認してください。");
     }
   }
 
@@ -301,14 +292,6 @@ export function BookLibrary() {
     detailDialogRef.current?.close();
     setSelectedBook(null);
     addDialogRef.current?.showModal();
-  }
-
-  function updateCrop(key: keyof Crop, value: number) {
-    setCrop((current) => {
-      const next = { ...current, [key]: value };
-      if (next.right - next.left < 8 || next.bottom - next.top < 8) return current;
-      return next;
-    });
   }
 
   function startCropDrag(event: ReactPointerEvent<HTMLButtonElement>, handle: CropHandle) {
@@ -372,7 +355,7 @@ export function BookLibrary() {
   async function saveBook(event: FormEvent) {
     event.preventDefault();
     if (!photo) {
-      fileInputRef.current?.click();
+      setError("表紙を撮影してください。");
       return;
     }
     setSaving(true);
@@ -482,7 +465,6 @@ export function BookLibrary() {
             <button className="close-button" type="button" onClick={closeAddDialog} aria-label="閉じる">×</button>
           </div>
 
-          <input ref={fileInputRef} className="visually-hidden" type="file" accept="image/*" capture="environment" onChange={choosePhoto} />
           {!photoUrl ? (
             cameraActive ? (
               <div className="camera-panel">
@@ -516,9 +498,6 @@ export function BookLibrary() {
                   <span className="camera-shape" aria-hidden="true" />
                   <strong>ガイド付きで表紙を撮影</strong>
                   <small>縦横の線に合わせて、まっすぐ撮影できます</small>
-                </button>
-                <button className="file-choice" type="button" onClick={() => fileInputRef.current?.click()} disabled={detecting}>
-                  標準カメラを使う
                 </button>
                 {detecting && <p className="detecting-message" aria-live="polite">表紙の余白を検出しています…</p>}
               </div>
@@ -564,13 +543,6 @@ export function BookLibrary() {
                 </div>
               </div>
               {cropMessage && <p className="crop-message" aria-live="polite">{cropMessage}</p>}
-              <p className="crop-control-label">細かく調整</p>
-              <div className="crop-controls">
-                <label>左 <input type="range" min="0" max="88" value={crop.left} onChange={(e) => updateCrop("left", Number(e.target.value))} /></label>
-                <label>右 <input type="range" min="12" max="100" value={crop.right} onChange={(e) => updateCrop("right", Number(e.target.value))} /></label>
-                <label>上 <input type="range" min="0" max="88" value={crop.top} onChange={(e) => updateCrop("top", Number(e.target.value))} /></label>
-                <label>下 <input type="range" min="12" max="100" value={crop.bottom} onChange={(e) => updateCrop("bottom", Number(e.target.value))} /></label>
-              </div>
               <div className="retake-actions">
                 <button className="retake" type="button" onClick={() => {
                   setPhoto(null);
@@ -581,7 +553,6 @@ export function BookLibrary() {
                   setCropMessage("");
                   void startCamera();
                 }}>ガイド付きで撮り直す</button>
-                <button className="retake" type="button" onClick={() => fileInputRef.current?.click()}>標準カメラで撮り直す</button>
               </div>
             </div>
           )}
@@ -591,7 +562,7 @@ export function BookLibrary() {
             <label><span>メモ <small>任意</small></span><textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="この本を選んだ理由など" maxLength={1000} rows={3} /></label>
           </div>
           {error && <p className="error-message" role="alert">{error}</p>}
-          <button className="save-button" type="submit" disabled={saving || detecting}>
+          <button className="save-button" type="submit" disabled={saving || detecting || !photo}>
             {saving ? "保存しています…" : editingBookId ? "表紙を更新する" : "この本を積む"}
           </button>
         </form>
