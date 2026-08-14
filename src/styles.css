@@ -86,12 +86,28 @@ button { color: inherit; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 .camera-prompt { width: 100%; min-height: 250px; border: 1px dashed #91a096; border-radius: 16px; background: #f0f2e9; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; cursor: pointer; }
 .camera-prompt small { color: var(--muted); }
+.camera-actions { display: grid; gap: 12px; }
+.camera-panel { display: grid; gap: 12px; }
+.camera-preview { position: relative; width: 100%; aspect-ratio: 3 / 4; max-height: 58vh; overflow: hidden; border-radius: 16px; background: #111; }
+.camera-preview video { width: 100%; height: 100%; display: block; object-fit: contain; }
+.camera-guide { position: absolute; inset: 7% 15%; border: 2px solid rgba(255,255,255,.94); border-radius: 5px; box-shadow: 0 0 0 9999px rgba(0,0,0,.2); pointer-events: none; }
+.camera-guide i { position: absolute; display: block; background: rgba(255,255,255,.72); }
+.camera-guide i:nth-child(1), .camera-guide i:nth-child(2) { top: 0; bottom: 0; width: 1px; }
+.camera-guide i:nth-child(1) { left: 33.333%; }
+.camera-guide i:nth-child(2) { left: 66.666%; }
+.camera-guide i:nth-child(3), .camera-guide i:nth-child(4) { left: 0; right: 0; height: 1px; }
+.camera-guide i:nth-child(3) { top: 33.333%; }
+.camera-guide i:nth-child(4) { top: 66.666%; }
+.shutter-button, .file-choice, .edit-cover-button { border: 0; border-radius: 12px; padding: 13px 16px; background: var(--forest); color: white; font-weight: 700; cursor: pointer; }
+.file-choice { background: transparent; color: var(--forest); border: 1px solid var(--forest); }
+.camera-prompt:disabled, .file-choice:disabled { opacity: .55; cursor: wait; }
+.detecting-message, .crop-message { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.6; }
 .camera-shape { width: 54px; height: 40px; border: 3px solid var(--forest); border-radius: 9px; position: relative; margin-bottom: 8px; }
 .camera-shape::before { content: ""; position: absolute; width: 16px; height: 10px; left: 8px; top: -10px; border: 3px solid var(--forest); border-bottom: 0; border-radius: 4px 4px 0 0; }
 .camera-shape::after { content: ""; position: absolute; width: 17px; height: 17px; border: 3px solid var(--forest); border-radius: 50%; left: 15px; top: 8px; }
 .crop-help { font-size: 13px; color: var(--muted); }
 .crop-help span { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; color: var(--lime); background: var(--forest); margin-right: 7px; }
-.crop-stage { position: relative; width: 100%; height: min(52vh, 390px); background: #17221c; border-radius: 14px; overflow: hidden; }
+.crop-stage { position: relative; width: 100%; background: #17221c; border-radius: 14px; overflow: hidden; }
 .crop-stage img { width: 100%; height: 100%; object-fit: contain; display: block; }
 .crop-stage::after { content: ""; position: absolute; inset: 0; border: 200vmax solid rgba(0,0,0,.45); pointer-events: none; }
 .crop-box { position: absolute; z-index: 2; border: 2px solid white; box-shadow: 0 0 0 9999px rgba(0,0,0,.42); pointer-events: none; }
@@ -100,6 +116,7 @@ button { color: inherit; }
 .crop-controls label { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
 .crop-controls input { min-width: 0; width: 100%; accent-color: var(--forest); }
 .retake { border: 0; background: transparent; color: var(--forest); text-decoration: underline; padding: 12px 0 0; cursor: pointer; }
+.retake-actions { display: flex; flex-wrap: wrap; gap: 0 18px; }
 .fields { display: grid; gap: 14px; margin-top: 22px; }
 .fields label > span { display: block; margin-bottom: 7px; font-size: 13px; font-weight: 700; }
 .fields label small { color: var(--muted); font-weight: 400; }
@@ -121,6 +138,7 @@ button { color: inherit; }
 .detail-copy dt { color: var(--muted); }
 .detail-copy dd { margin: 0; }
 .book-notes { white-space: pre-wrap; line-height: 1.8; }
+.edit-cover-button { width: 100%; margin-top: 14px; }
 .barcode-note { color: var(--muted); font-size: 12px; line-height: 1.7; margin-top: 30px; }
 
 @media (max-width: 860px) {
@@ -141,7 +159,6 @@ button { color: inherit; }
   .section-heading h2 { font-size: 28px; }
   .book-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 30px 18px; }
   .add-dialog form { padding: 22px 16px; }
-  .crop-stage { height: 42vh; }
   .detail-card { grid-template-columns: 1fr; gap: 28px; padding: 54px 22px 28px; }
   .detail-card > img { max-height: 48vh; }
   .detail-copy h2 { font-size: 28px; }

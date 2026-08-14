@@ -1,15 +1,20 @@
 "use client";
 
 import { ChangeEvent, FormEvent, useCallback, useEffect, useRef, useState } from "react";
-import { addBook, getBooks, type StoredBook } from "./storage";
+import {
+  cropPhoto,
+  detectBookCrop,
+  fullCrop,
+  initialCrop,
+  normalizePhoto,
+  type Crop,
+} from "./image";
+import { addBook, getBooks, updateBook, type StoredBook } from "./storage";
 
-type Book = Omit<StoredBook, "cover"> & {
+type Book = StoredBook & {
   coverUrl: string;
 };
 
-type Crop = { left: number; top: number; right: number; bottom: number };
-
-const initialCrop: Crop = { left: 4, top: 4, right: 96, bottom: 96 };
 const lockedViewport = "width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no";
 const detailViewport = "width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes";
 
@@ -21,46 +26,34 @@ function formatDate(value: string) {
   }).format(new Date(value.endsWith("Z") ? value : `${value}Z`));
 }
 
-async function cropPhoto(file: File, crop: Crop) {
-  const image = await createImageBitmap(file);
-  const sx = Math.round((crop.left / 100) * image.width);
-  const sy = Math.round((crop.top / 100) * image.height);
-  const sourceWidth = Math.max(1, Math.round(((crop.right - crop.left) / 100) * image.width));
-  const sourceHeight = Math.max(1, Math.round(((crop.bottom - crop.top) / 100) * image.height));
-  const scale = Math.min(1, 1400 / Math.max(sourceWidth, sourceHeight));
-  const canvas = document.createElement("canvas");
-  canvas.width = Math.max(1, Math.round(sourceWidth * scale));
-  canvas.height = Math.max(1, Math.round(sourceHeight * scale));
-  const context = canvas.getContext("2d");
-  if (!context) throw new Error("画像を処理できませんでした。");
-  context.drawImage(image, sx, sy, sourceWidth, sourceHeight, 0, 0, canvas.width, canvas.height);
-  image.close();
-  return new Promise<Blob>((resolve, reject) => {
-    canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("画像を保存できませんでした。")), "image/jpeg", 0.88);
-  });
-}
-
 export function BookLibrary() {
   const [books, setBooks] = useState<Book[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [selectedBook, setSelectedBook] = useState<Book | null>(null);
-  const [photo, setPhoto] = useState<File | null>(null);
+  const [editingBookId, setEditingBookId] = useState<string | null>(null);
+  const [photo, setPhoto] = useState<Blob | null>(null);
   const [photoUrl, setPhotoUrl] = useState("");
+  const [photoAspectRatio, setPhotoAspectRatio] = useState(2 / 3);
   const [crop, setCrop] = useState<Crop>(initialCrop);
+  const [detecting, setDetecting] = useState(false);
+  const [cropMessage, setCropMessage] = useState("");
+  const [cameraActive, setCameraActive] = useState(false);
   const [title, setTitle] = useState("");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
   const addDialogRef = useRef<HTMLDialogElement>(null);
   const detailDialogRef = useRef<HTMLDialogElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const cameraStreamRef = useRef<MediaStream | null>(null);
   const coverUrlsRef = useRef<string[]>([]);
 
   const loadBooks = useCallback(async () => {
     try {
       const storedBooks = await getBooks();
-      const nextBooks = storedBooks.map(({ cover, ...book }) => {
-        const coverUrl = URL.createObjectURL(cover);
+      const nextBooks = storedBooks.map((book) => {
+        const coverUrl = URL.createObjectURL(book.cover);
         coverUrlsRef.current.push(coverUrl);
         return { ...book, coverUrl };
       });
@@ -72,6 +65,12 @@ export function BookLibrary() {
       setLoading(false);
     }
   }, []);
+  const stopCamera = useCallback(() => {
+    cameraStreamRef.current?.getTracks().forEach((track) => track.stop());
+    cameraStreamRef.current = null;
+    if (videoRef.current) videoRef.current.srcObject = null;
+    setCameraActive(false);
+  }, []);
 
   useEffect(() => {
     const timer = window.setTimeout(() => void loadBooks(), 0);
@@ -81,6 +80,7 @@ export function BookLibrary() {
   useEffect(() => () => {
     coverUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
   }, []);
+  useEffect(() => stopCamera, [stopCamera]);
   useEffect(() => {
     const dialog = detailDialogRef.current;
     if (!dialog) return;
@@ -98,22 +98,140 @@ export function BookLibrary() {
   }, [selectedBook]);
 
   function openAddDialog() {
+    stopCamera();
+    setEditingBookId(null);
     setPhoto(null);
-    setPhotoUrl("");
+    setPhotoUrl((current) => {
+      if (current) URL.revokeObjectURL(current);
+      return "";
+    });
     setCrop(initialCrop);
+    setPhotoAspectRatio(2 / 3);
+    setCropMessage("");
     setTitle("");
     setNotes("");
     setError("");
     addDialogRef.current?.showModal();
   }
 
+  function closeAddDialog() {
+    stopCamera();
+    addDialogRef.current?.close();
+  }
+
+  async function applyPhoto(source: Blob) {
+    setDetecting(true);
+    setError("");
+    stopCamera();
+    try {
+      const normalized = await normalizePhoto(source);
+      const result = await detectBookCrop(normalized);
+      setPhoto(normalized);
+      setPhotoUrl((current) => {
+        if (current) URL.revokeObjectURL(current);
+        return URL.createObjectURL(normalized);
+      });
+      setCrop(result.crop);
+      setCropMessage(
+        result.detected
+          ? "表紙を自動検出しました。必要ならスライダーで微調整できます。"
+          : "表紙を自動検出できませんでした。白い枠を微調整してください。",
+      );
+    } catch (photoError) {
+      setError(
+        photoError instanceof Error
+          ? photoError.message
+          : "撮影した画像を処理できませんでした。",
+      );
+    } finally {
+      setDetecting(false);
+    }
+  }
+
   function choosePhoto(event: ChangeEvent<HTMLInputElement>) {
     const nextPhoto = event.target.files?.[0];
     if (!nextPhoto) return;
-    if (photoUrl) URL.revokeObjectURL(photoUrl);
-    setPhoto(nextPhoto);
-    setPhotoUrl(URL.createObjectURL(nextPhoto));
-    setCrop(initialCrop);
+    void applyPhoto(nextPhoto);
+    event.target.value = "";
+  }
+
+  async function startCamera() {
+    setError("");
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setError("この端末ではアプリ内カメラを利用できません。写真を選択してください。");
+      return;
+    }
+
+    try {
+      stopCamera();
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: {
+          facingMode: { ideal: "environment" },
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
+        },
+      });
+      cameraStreamRef.current = stream;
+      setCameraActive(true);
+      window.setTimeout(() => {
+        if (!videoRef.current) return;
+        videoRef.current.srcObject = stream;
+        void videoRef.current.play();
+      }, 0);
+    } catch {
+      stopCamera();
+      setError("カメラを開始できませんでした。権限を確認するか、写真を選択してください。");
+    }
+  }
+
+  async function captureCameraPhoto() {
+    const video = videoRef.current;
+    if (!video?.videoWidth || !video.videoHeight) {
+      setError("カメラの準備ができていません。少し待ってから撮影してください。");
+      return;
+    }
+
+    const canvas = document.createElement("canvas");
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const context = canvas.getContext("2d");
+    if (!context) {
+      setError("カメラ画像を処理できませんでした。");
+      return;
+    }
+    context.drawImage(video, 0, 0);
+    const captured = await new Promise<Blob | null>((resolve) => {
+      canvas.toBlob(resolve, "image/jpeg", 0.92);
+    });
+    if (!captured) {
+      setError("写真を作成できませんでした。");
+      return;
+    }
+    await applyPhoto(captured);
+  }
+
+  function editSelectedCover() {
+    if (!selectedBook) return;
+    const original = selectedBook.original ?? selectedBook.cover;
+    setEditingBookId(selectedBook.id);
+    setPhoto(original);
+    setPhotoUrl((current) => {
+      if (current) URL.revokeObjectURL(current);
+      return URL.createObjectURL(original);
+    });
+    setCrop(selectedBook.crop ?? fullCrop);
+    setCropMessage(
+      selectedBook.original
+        ? "保存時の元画像から表紙を微調整できます。"
+        : "この本には元画像がないため、現在の表紙の範囲内で調整できます。",
+    );
+    setTitle(selectedBook.title);
+    setNotes(selectedBook.notes);
+    setError("");
+    detailDialogRef.current?.close();
+    setSelectedBook(null);
+    addDialogRef.current?.showModal();
   }
 
   function updateCrop(key: keyof Crop, value: number) {
@@ -134,16 +252,28 @@ export function BookLibrary() {
     setError("");
     try {
       const cover = await cropPhoto(photo, crop);
-      const storedBook = await addBook({
+      const values = {
         cover,
+        original: photo,
+        crop,
         title: title.trim() || "タイトル未設定",
         notes: notes.trim(),
-      });
-      const { cover: savedCover, ...book } = storedBook;
-      const coverUrl = URL.createObjectURL(savedCover);
+      };
+      const storedBook = editingBookId
+        ? await updateBook({ id: editingBookId, ...values })
+        : await addBook(values);
+      const coverUrl = URL.createObjectURL(storedBook.cover);
       coverUrlsRef.current.push(coverUrl);
-      setBooks((current) => [{ ...book, coverUrl }, ...current]);
-      addDialogRef.current?.close();
+      const nextBook = { ...storedBook, coverUrl };
+      setBooks((current) => {
+        if (!editingBookId) return [nextBook, ...current];
+        return current.map((book) => {
+          if (book.id !== editingBookId) return book;
+          URL.revokeObjectURL(book.coverUrl);
+          return nextBook;
+        });
+      });
+      closeAddDialog();
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "保存できませんでした。");
     } finally {
@@ -208,34 +338,85 @@ export function BookLibrary() {
         )}
       </section>
 
-      <dialog className="add-dialog" ref={addDialogRef} onClose={() => setError("")}>
+      <dialog
+        className="add-dialog"
+        ref={addDialogRef}
+        onClose={() => {
+          stopCamera();
+          setError("");
+        }}
+      >
         <form onSubmit={saveBook}>
           <div className="dialog-heading">
-            <div><p className="eyebrow">NEW BOOK</p><h2>一冊を積む</h2></div>
-            <button className="close-button" type="button" onClick={() => addDialogRef.current?.close()} aria-label="閉じる">×</button>
+            <div>
+              <p className="eyebrow">{editingBookId ? "EDIT COVER" : "NEW BOOK"}</p>
+              <h2>{editingBookId ? "表紙を微調整" : "一冊を積む"}</h2>
+            </div>
+            <button className="close-button" type="button" onClick={closeAddDialog} aria-label="閉じる">×</button>
           </div>
 
           <input ref={fileInputRef} className="visually-hidden" type="file" accept="image/*" capture="environment" onChange={choosePhoto} />
           {!photoUrl ? (
-            <button className="camera-prompt" type="button" onClick={() => fileInputRef.current?.click()}>
-              <span className="camera-shape" aria-hidden="true" />
-              <strong>本の表紙を撮影</strong>
-              <small>本が画面いっぱいに入るように撮ってください</small>
-            </button>
+            cameraActive ? (
+              <div className="camera-panel">
+                <p className="crop-help"><span>1</span> 線に合わせて本をまっすぐ置いてください</p>
+                <div className="camera-preview">
+                  <video ref={videoRef} muted playsInline aria-label="カメラ映像" />
+                  <div className="camera-guide" aria-hidden="true">
+                    <i /><i /><i /><i />
+                  </div>
+                </div>
+                <button className="shutter-button" type="button" onClick={() => void captureCameraPhoto()}>
+                  撮影する
+                </button>
+                <button className="retake" type="button" onClick={stopCamera}>カメラを閉じる</button>
+              </div>
+            ) : (
+              <div className="camera-actions">
+                <button className="camera-prompt" type="button" onClick={() => void startCamera()} disabled={detecting}>
+                  <span className="camera-shape" aria-hidden="true" />
+                  <strong>ガイド付きで表紙を撮影</strong>
+                  <small>縦横の線に合わせて、まっすぐ撮影できます</small>
+                </button>
+                <button className="file-choice" type="button" onClick={() => fileInputRef.current?.click()} disabled={detecting}>
+                  標準カメラを使う
+                </button>
+                {detecting && <p className="detecting-message" aria-live="polite">表紙の余白を検出しています…</p>}
+              </div>
+            )
           ) : (
             <div className="crop-area">
-              <p className="crop-help"><span>1</span> 白い枠を本の表紙に合わせてください</p>
-              <div className="crop-stage">
-                <img src={photoUrl} alt="撮影した本の切り抜きプレビュー" />
+              <p className="crop-help"><span>2</span> 自動検出した白い枠を確認してください</p>
+              <div className="crop-stage" style={{ aspectRatio: photoAspectRatio }}>
+                <img
+                  src={photoUrl}
+                  alt="撮影した本の切り抜きプレビュー"
+                  onLoad={(event) => {
+                    const image = event.currentTarget;
+                    setPhotoAspectRatio(image.naturalWidth / image.naturalHeight);
+                  }}
+                />
                 <div className="crop-box" style={{ left: `${crop.left}%`, top: `${crop.top}%`, right: `${100 - crop.right}%`, bottom: `${100 - crop.bottom}%` }} />
               </div>
+              {cropMessage && <p className="crop-message" aria-live="polite">{cropMessage}</p>}
               <div className="crop-controls">
                 <label>左 <input type="range" min="0" max="88" value={crop.left} onChange={(e) => updateCrop("left", Number(e.target.value))} /></label>
                 <label>右 <input type="range" min="12" max="100" value={crop.right} onChange={(e) => updateCrop("right", Number(e.target.value))} /></label>
                 <label>上 <input type="range" min="0" max="88" value={crop.top} onChange={(e) => updateCrop("top", Number(e.target.value))} /></label>
                 <label>下 <input type="range" min="12" max="100" value={crop.bottom} onChange={(e) => updateCrop("bottom", Number(e.target.value))} /></label>
               </div>
-              <button className="retake" type="button" onClick={() => fileInputRef.current?.click()}>撮り直す</button>
+              <div className="retake-actions">
+                <button className="retake" type="button" onClick={() => {
+                  setPhoto(null);
+                  setPhotoUrl((current) => {
+                    if (current) URL.revokeObjectURL(current);
+                    return "";
+                  });
+                  setCropMessage("");
+                  void startCamera();
+                }}>ガイド付きで撮り直す</button>
+                <button className="retake" type="button" onClick={() => fileInputRef.current?.click()}>標準カメラで撮り直す</button>
+              </div>
             </div>
           )}
 
@@ -244,7 +425,9 @@ export function BookLibrary() {
             <label><span>メモ <small>任意</small></span><textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="この本を選んだ理由など" maxLength={1000} rows={3} /></label>
           </div>
           {error && <p className="error-message" role="alert">{error}</p>}
-          <button className="save-button" type="submit" disabled={saving}>{saving ? "保存しています…" : "この本を積む"}</button>
+          <button className="save-button" type="submit" disabled={saving || detecting}>
+            {saving ? "保存しています…" : editingBookId ? "表紙を更新する" : "この本を積む"}
+          </button>
         </form>
       </dialog>
 
@@ -262,6 +445,9 @@ export function BookLibrary() {
               <h2 id="book-detail-title">{selectedBook.title}</h2>
               <dl><div><dt>積んだ日</dt><dd>{formatDate(selectedBook.createdAt)}</dd></div></dl>
               {selectedBook.notes && <p className="book-notes">{selectedBook.notes}</p>}
+              <button className="edit-cover-button" type="button" onClick={editSelectedCover}>
+                表紙を微調整
+              </button>
               {!selectedBook.isbn && <p className="barcode-note">バーコードからの書籍情報取得は、次のアップデートで追加予定です。</p>}
             </div>
           </section>
