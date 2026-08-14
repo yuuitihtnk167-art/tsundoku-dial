@@ -37,8 +37,19 @@ test("GitHub Pages用の静的アプリを生成する", async () => {
   assert.match(app, /}, 300\)/);
   assert.match(app, /distance > 18/);
   assert.match(app, /selectedBookId/);
-  assert.match(app, /つかみました。もう一度動かすと並べ替え・削除できます。/);
+  assert.match(app, /つかみました。もう一度動かすと並べ替え・分類・削除できます。/);
   assert.match(styles, /\.book-card\.is-selected \{ touch-action: none; \}/);
+  assert.doesNotMatch(app, /積んだ本には/);
+  assert.match(app, /role="slider"/);
+  assert.match(app, /finishDialTurn/);
+  assert.match(app, /Math\.round\(pointer\.rotation \/ 72\) \* 72/);
+  assert.match(app, /今読んでいる/);
+  assert.match(app, /もう一度読みたい/);
+  assert.match(app, /持っている/);
+  assert.match(app, /data-category-drop=\{category\.id\}/);
+  assert.match(app, /classification-tray/);
+  assert.match(styles, /\.dial-knob/);
+  assert.match(styles, /\.classification-tray/);
   assert.match(app, /data-book-id=\{book\.id\}/);
   assert.match(app, /delete-drop-zone/);
   assert.match(app, /saveBookOrder/);
@@ -52,6 +63,9 @@ test("GitHub Pages用の静的アプリを生成する", async () => {
   assert.match(storage, /original\?: Blob/);
   assert.match(storage, /export async function updateBook/);
   assert.match(storage, /sortOrder\?: number/);
+  assert.match(storage, /category\?: BookCategory/);
+  assert.match(storage, /category: "unclassified"/);
+  assert.match(storage, /export async function updateBookCategory/);
   assert.match(storage, /export async function saveBookOrder/);
   assert.match(storage, /export async function deleteBook/);
   assert.match(image, /function detectBounds/);
@@ -68,6 +82,6 @@ test("GitHub Pages用の静的アプリを生成する", async () => {
     parsedManifest.icons.map(({ sizes }) => sizes),
     ["192x192", "512x512"],
   );
-  assert.match(serviceWorker, /tsundoku-dial-v10/);
+  assert.match(serviceWorker, /tsundoku-dial-v11/);
   assert.match(serviceWorker, /caches\.delete/);
 });
