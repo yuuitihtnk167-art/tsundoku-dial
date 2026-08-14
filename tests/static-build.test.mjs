@@ -27,6 +27,12 @@ test("GitHub Pages用の静的アプリを生成する", async () => {
   assert.match(app, /navigator\.canShare/);
   assert.match(app, /new File\(/);
   assert.match(app, /共有先でChatGPTを選ぶ/);
+  assert.match(app, /navigator\.clipboard\.writeText\(bookAnalysisPrompt\)/);
+  assert.match(app, /分析用の文章をコピー/);
+  assert.match(app, /ChatGPTに貼り付けてください。/);
+  assert.match(app, /出版社、公式書籍ページ、著者情報などを優先/);
+  assert.match(app, /200～300文字程度を目安にする/);
+  assert.match(app, /text: bookAnalysisPrompt/);
   assert.match(app, /setTimeout\(\(\) => \{[\s\S]*setDraggingBookId\(bookId\)/);
   assert.match(app, /data-book-id=\{book\.id\}/);
   assert.match(app, /delete-drop-zone/);
@@ -57,6 +63,6 @@ test("GitHub Pages用の静的アプリを生成する", async () => {
     parsedManifest.icons.map(({ sizes }) => sizes),
     ["192x192", "512x512"],
   );
-  assert.match(serviceWorker, /tsundoku-dial-v8/);
+  assert.match(serviceWorker, /tsundoku-dial-v9/);
   assert.match(serviceWorker, /caches\.delete/);
 });

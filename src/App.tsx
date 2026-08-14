@@ -65,6 +65,52 @@ const cropHandles: Array<{ handle: CropHandle; label: string }> = [
   { handle: "w", label: "左辺を調整" },
 ];
 
+const bookAnalysisPrompt = [
+  "添付・共有した本の画像を確認し、この本について調べて、読書記録アプリに保存するための文章を作成してください。",
+  "",
+  "【調査】",
+  "",
+  "- 表紙から書名・著者名・出版社などを読み取ってください。",
+  "- 書名を特定したら、Webで信頼できる情報を調べて内容を確認してください。",
+  "- 出版社、公式書籍ページ、著者情報などを優先してください。",
+  "- 画像だけでは確認できない内容を推測で書かないでください。",
+  "- 確認できない情報は「確認できない」としてください。",
+  "",
+  "【出力形式】",
+  "",
+  "最初に、本のタイトルだけを独立したコードブロックで出力してください。",
+  "",
+  "```text",
+  "本の正式タイトル",
+  "```",
+  "",
+  "その後、読書記録用の本文を別のコードブロックで出力してください。",
+  "",
+  "本文には次の内容を、簡潔で分かりやすい文章にまとめてください。",
+  "",
+  "- どんな本なのか",
+  "- 主に何を学べる本なのか",
+  "- 主な内容・テーマ",
+  "- どんな人に向いている本なのか",
+  "- この本の特徴",
+  "",
+  "文章は、あとから読書記録を見返したときに「どんな本だったか」がすぐ分かる程度の長さにしてください。",
+  "長すぎる説明や細かすぎる目次紹介は不要です。",
+  "",
+  "```text",
+  "読書記録用本文",
+  "```",
+  "",
+  "【文章の方針】",
+  "",
+  "- 事実に基づいて書く",
+  "- 宣伝文句をそのまま使わない",
+  "- 難しい専門用語はできるだけ分かりやすく言い換える",
+  "- 200～300文字程度を目安にする",
+  "- 感想や評価は勝手に付け加えない",
+  "- ISBN、価格、発売日などは、内容理解に必要でなければ本文には入れない",
+].join("\n");
+
 const minimumCropSize = 8;
 
 function clamp(value: number, minimum: number, maximum: number) {
@@ -98,6 +144,7 @@ export function BookLibrary() {
   const [cameraReady, setCameraReady] = useState(false);
   const [preparedShare, setPreparedShare] = useState<PreparedShare | null>(null);
   const [sharing, setSharing] = useState(false);
+  const [promptCopied, setPromptCopied] = useState(false);
   const [draggingBookId, setDraggingBookId] = useState<string | null>(null);
   const [dragPosition, setDragPosition] = useState<{ x: number; y: number } | null>(null);
   const [deleteDropActive, setDeleteDropActive] = useState(false);
@@ -250,6 +297,7 @@ export function BookLibrary() {
     setCrop(initialCrop);
     setPhotoAspectRatio(2 / 3);
     setCropMessage("");
+    setPromptCopied(false);
     setTitle("");
     setNotes("");
     setError("");
@@ -357,6 +405,7 @@ export function BookLibrary() {
         ? "保存時の元画像から表紙を微調整できます。"
         : "この本には元画像がないため、現在の表紙の範囲内で調整できます。",
     );
+    setPromptCopied(false);
     setTitle(selectedBook.title);
     setNotes(selectedBook.notes);
     setError("");
@@ -556,6 +605,20 @@ export function BookLibrary() {
     setSelectedBook(book);
   }
 
+  async function copyAnalysisPrompt() {
+    if (!navigator.clipboard?.writeText) {
+      setError("この端末またはブラウザは文章のコピーに対応していません。");
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(bookAnalysisPrompt);
+      setPromptCopied(true);
+      setError("");
+    } catch {
+      setError("分析用の文章をコピーできませんでした。もう一度お試しください。");
+    }
+  }
+
   async function shareCover() {
     if (!shareFile) {
       setError("共有する画像を準備しています。少し待ってからもう一度お試しください。");
@@ -572,7 +635,7 @@ export function BookLibrary() {
       await navigator.share({
         files: [shareFile],
         title: "本の表紙",
-        text: "この本の表紙を分析してください。",
+        text: bookAnalysisPrompt,
       });
     } catch (shareError) {
       if (shareError instanceof DOMException && shareError.name === "AbortError") return;
@@ -829,6 +892,14 @@ export function BookLibrary() {
 
           {photo && (
             <div className="share-panel">
+              <button
+                className="copy-prompt-button"
+                type="button"
+                onClick={() => void copyAnalysisPrompt()}
+              >
+                {promptCopied ? "コピーしました" : "分析用の文章をコピー"}
+              </button>
+              <small className="copy-instruction">ChatGPTに貼り付けてください。</small>
               <button
                 className="share-button"
                 type="button"
