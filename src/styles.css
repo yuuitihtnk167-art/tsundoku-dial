@@ -137,9 +137,12 @@ button { color: inherit; }
 .retake { border: 0; background: transparent; color: var(--forest); text-decoration: underline; padding: 12px 0 0; cursor: pointer; }
 .retake-actions { display: flex; flex-wrap: wrap; gap: 0 18px; }
 .share-panel { display: grid; gap: 7px; margin-top: 20px; }
-.share-button { width: 100%; border: 1px solid var(--forest); border-radius: 12px; padding: 13px 16px; background: transparent; color: var(--forest); font-weight: 700; cursor: pointer; }
+.copy-prompt-button, .share-button { width: 100%; border: 1px solid var(--forest); border-radius: 12px; padding: 13px 16px; font-weight: 700; cursor: pointer; }
+.copy-prompt-button { background: var(--forest); color: white; }
+.share-button { background: transparent; color: var(--forest); }
 .share-button:disabled { opacity: .55; cursor: wait; }
 .share-panel small { color: var(--muted); font-size: 11px; line-height: 1.5; text-align: center; }
+.copy-instruction + .share-button { margin-top: 8px; }
 .fields { display: grid; gap: 14px; margin-top: 22px; }
 .fields label > span { display: block; margin-bottom: 7px; font-size: 13px; font-weight: 700; }
 .fields label small { color: var(--muted); font-weight: 400; }
