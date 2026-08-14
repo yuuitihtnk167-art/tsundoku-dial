@@ -1,6 +1,14 @@
 "use client";
 
-import { ChangeEvent, FormEvent, useCallback, useEffect, useRef, useState } from "react";
+import {
+  ChangeEvent,
+  FormEvent,
+  PointerEvent as ReactPointerEvent,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import {
   cropPhoto,
   detectBookCrop,
@@ -14,6 +22,35 @@ import { addBook, getBooks, updateBook, type StoredBook } from "./storage";
 type Book = StoredBook & {
   coverUrl: string;
 };
+
+type CropHandle = "move" | "n" | "ne" | "e" | "se" | "s" | "sw" | "w" | "nw";
+
+type CropDrag = {
+  pointerId: number;
+  handle: CropHandle;
+  startX: number;
+  startY: number;
+  startCrop: Crop;
+  stageWidth: number;
+  stageHeight: number;
+};
+
+const cropHandles: Array<{ handle: CropHandle; label: string }> = [
+  { handle: "nw", label: "左上を調整" },
+  { handle: "n", label: "上辺を調整" },
+  { handle: "ne", label: "右上を調整" },
+  { handle: "e", label: "右辺を調整" },
+  { handle: "se", label: "右下を調整" },
+  { handle: "s", label: "下辺を調整" },
+  { handle: "sw", label: "左下を調整" },
+  { handle: "w", label: "左辺を調整" },
+];
+
+const minimumCropSize = 8;
+
+function clamp(value: number, minimum: number, maximum: number) {
+  return Math.min(maximum, Math.max(minimum, value));
+}
 
 const lockedViewport = "width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no";
 const detailViewport = "width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes";
@@ -39,6 +76,7 @@ export function BookLibrary() {
   const [detecting, setDetecting] = useState(false);
   const [cropMessage, setCropMessage] = useState("");
   const [cameraActive, setCameraActive] = useState(false);
+  const [cameraReady, setCameraReady] = useState(false);
   const [title, setTitle] = useState("");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
@@ -47,6 +85,7 @@ export function BookLibrary() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const cameraStreamRef = useRef<MediaStream | null>(null);
+  const cropDragRef = useRef<CropDrag | null>(null);
   const coverUrlsRef = useRef<string[]>([]);
 
   const loadBooks = useCallback(async () => {
@@ -69,6 +108,7 @@ export function BookLibrary() {
     cameraStreamRef.current?.getTracks().forEach((track) => track.stop());
     cameraStreamRef.current = null;
     if (videoRef.current) videoRef.current.srcObject = null;
+    setCameraReady(false);
     setCameraActive(false);
   }, []);
 
@@ -81,6 +121,39 @@ export function BookLibrary() {
     coverUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
   }, []);
   useEffect(() => stopCamera, [stopCamera]);
+  useEffect(() => {
+    if (!cameraActive) return;
+    const video = videoRef.current;
+    const stream = cameraStreamRef.current;
+    if (!video || !stream) {
+      setError("カメラ映像を表示できませんでした。カメラを開き直してください。");
+      return;
+    }
+
+    let cancelled = false;
+    video.srcObject = stream;
+    const startPlayback = async () => {
+      try {
+        await video.play();
+      } catch {
+        if (cancelled) return;
+        setError("カメラ映像を再生できませんでした。カメラを開き直してください。");
+        stopCamera();
+      }
+    };
+
+    if (video.readyState >= HTMLMediaElement.HAVE_METADATA) {
+      void startPlayback();
+    } else {
+      video.addEventListener("loadedmetadata", startPlayback, { once: true });
+    }
+
+    return () => {
+      cancelled = true;
+      video.removeEventListener("loadedmetadata", startPlayback);
+      if (video.srcObject === stream) video.srcObject = null;
+    };
+  }, [cameraActive, stopCamera]);
   useEffect(() => {
     const dialog = detailDialogRef.current;
     if (!dialog) return;
@@ -134,8 +207,8 @@ export function BookLibrary() {
       setCrop(result.crop);
       setCropMessage(
         result.detected
-          ? "表紙を自動検出しました。必要ならスライダーで微調整できます。"
-          : "表紙を自動検出できませんでした。白い枠を微調整してください。",
+          ? "表紙を自動検出しました。必要なら白い枠を直接動かしてください。"
+          : "表紙を自動検出できませんでした。白い枠を直接動かして調整してください。",
       );
     } catch (photoError) {
       setError(
@@ -164,6 +237,7 @@ export function BookLibrary() {
 
     try {
       stopCamera();
+      setCameraReady(false);
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: false,
         video: {
@@ -174,11 +248,6 @@ export function BookLibrary() {
       });
       cameraStreamRef.current = stream;
       setCameraActive(true);
-      window.setTimeout(() => {
-        if (!videoRef.current) return;
-        videoRef.current.srcObject = stream;
-        void videoRef.current.play();
-      }, 0);
     } catch {
       stopCamera();
       setError("カメラを開始できませんでした。権限を確認するか、写真を選択してください。");
@@ -240,6 +309,64 @@ export function BookLibrary() {
       if (next.right - next.left < 8 || next.bottom - next.top < 8) return current;
       return next;
     });
+  }
+
+  function startCropDrag(event: ReactPointerEvent<HTMLButtonElement>, handle: CropHandle) {
+    const stage = event.currentTarget.closest<HTMLElement>(".crop-stage");
+    if (!stage) return;
+    const bounds = stage.getBoundingClientRect();
+    if (!bounds.width || !bounds.height) return;
+
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    cropDragRef.current = {
+      pointerId: event.pointerId,
+      handle,
+      startX: event.clientX,
+      startY: event.clientY,
+      startCrop: crop,
+      stageWidth: bounds.width,
+      stageHeight: bounds.height,
+    };
+  }
+
+  function dragCrop(event: ReactPointerEvent<HTMLDivElement>) {
+    const drag = cropDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    event.preventDefault();
+
+    const deltaX = ((event.clientX - drag.startX) / drag.stageWidth) * 100;
+    const deltaY = ((event.clientY - drag.startY) / drag.stageHeight) * 100;
+    const next = { ...drag.startCrop };
+
+    if (drag.handle === "move") {
+      const width = drag.startCrop.right - drag.startCrop.left;
+      const height = drag.startCrop.bottom - drag.startCrop.top;
+      next.left = clamp(drag.startCrop.left + deltaX, 0, 100 - width);
+      next.right = next.left + width;
+      next.top = clamp(drag.startCrop.top + deltaY, 0, 100 - height);
+      next.bottom = next.top + height;
+    } else {
+      if (drag.handle.includes("w")) {
+        next.left = clamp(drag.startCrop.left + deltaX, 0, drag.startCrop.right - minimumCropSize);
+      }
+      if (drag.handle.includes("e")) {
+        next.right = clamp(drag.startCrop.right + deltaX, drag.startCrop.left + minimumCropSize, 100);
+      }
+      if (drag.handle.includes("n")) {
+        next.top = clamp(drag.startCrop.top + deltaY, 0, drag.startCrop.bottom - minimumCropSize);
+      }
+      if (drag.handle.includes("s")) {
+        next.bottom = clamp(drag.startCrop.bottom + deltaY, drag.startCrop.top + minimumCropSize, 100);
+      }
+    }
+
+    setCrop(next);
+  }
+
+  function finishCropDrag(event: ReactPointerEvent<HTMLDivElement>) {
+    if (cropDragRef.current?.pointerId !== event.pointerId) return;
+    cropDragRef.current = null;
   }
 
   async function saveBook(event: FormEvent) {
@@ -361,13 +488,25 @@ export function BookLibrary() {
               <div className="camera-panel">
                 <p className="crop-help"><span>1</span> 線に合わせて本をまっすぐ置いてください</p>
                 <div className="camera-preview">
-                  <video ref={videoRef} muted playsInline aria-label="カメラ映像" />
+                  <video
+                    ref={videoRef}
+                    autoPlay
+                    muted
+                    playsInline
+                    aria-label="カメラ映像"
+                    onCanPlay={() => setCameraReady(true)}
+                  />
                   <div className="camera-guide" aria-hidden="true">
                     <i /><i /><i /><i />
                   </div>
                 </div>
-                <button className="shutter-button" type="button" onClick={() => void captureCameraPhoto()}>
-                  撮影する
+                <button
+                  className="shutter-button"
+                  type="button"
+                  onClick={() => void captureCameraPhoto()}
+                  disabled={!cameraReady}
+                >
+                  {cameraReady ? "撮影する" : "カメラ準備中…"}
                 </button>
                 <button className="retake" type="button" onClick={stopCamera}>カメラを閉じる</button>
               </div>
@@ -386,19 +525,46 @@ export function BookLibrary() {
             )
           ) : (
             <div className="crop-area">
-              <p className="crop-help"><span>2</span> 自動検出した白い枠を確認してください</p>
-              <div className="crop-stage" style={{ aspectRatio: photoAspectRatio }}>
+              <p className="crop-help"><span>2</span> 白い枠を指で動かして切り取り範囲を調整してください</p>
+              <div
+                className="crop-stage"
+                style={{ aspectRatio: photoAspectRatio }}
+                onPointerMove={dragCrop}
+                onPointerUp={finishCropDrag}
+                onPointerCancel={finishCropDrag}
+              >
                 <img
                   src={photoUrl}
                   alt="撮影した本の切り抜きプレビュー"
+                  draggable={false}
                   onLoad={(event) => {
                     const image = event.currentTarget;
                     setPhotoAspectRatio(image.naturalWidth / image.naturalHeight);
                   }}
                 />
-                <div className="crop-box" style={{ left: `${crop.left}%`, top: `${crop.top}%`, right: `${100 - crop.right}%`, bottom: `${100 - crop.bottom}%` }} />
+                <div
+                  className="crop-box"
+                  style={{ left: `${crop.left}%`, top: `${crop.top}%`, right: `${100 - crop.right}%`, bottom: `${100 - crop.bottom}%` }}
+                >
+                  <button
+                    className="crop-move"
+                    type="button"
+                    aria-label="切り取り範囲を移動"
+                    onPointerDown={(event) => startCropDrag(event, "move")}
+                  />
+                  {cropHandles.map(({ handle, label }) => (
+                    <button
+                      className={`crop-handle crop-handle-${handle}`}
+                      type="button"
+                      key={handle}
+                      aria-label={label}
+                      onPointerDown={(event) => startCropDrag(event, handle)}
+                    />
+                  ))}
+                </div>
               </div>
               {cropMessage && <p className="crop-message" aria-live="polite">{cropMessage}</p>}
+              <p className="crop-control-label">細かく調整</p>
               <div className="crop-controls">
                 <label>左 <input type="range" min="0" max="88" value={crop.left} onChange={(e) => updateCrop("left", Number(e.target.value))} /></label>
                 <label>右 <input type="range" min="12" max="100" value={crop.right} onChange={(e) => updateCrop("right", Number(e.target.value))} /></label>
