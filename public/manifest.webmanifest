@@ -1,0 +1,28 @@
+{
+  "id": "/tsundoku-dial/",
+  "name": "積読ダイヤル",
+  "short_name": "積読ダイヤル",
+  "description": "本の表紙を撮って切り抜き、積読を端末内の本棚へ保存します。",
+  "lang": "ja",
+  "dir": "ltr",
+  "start_url": "/tsundoku-dial/",
+  "scope": "/tsundoku-dial/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#f3efe5",
+  "theme_color": "#f3efe5",
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -29,6 +29,13 @@ npm run lint
 npm test
 ```
 
+## スマートフォンへのインストール
+
+- Android（Chrome）: 公開ページを開き、メニューから「アプリをインストール」を選びます。
+- iPhone（Safari）: 公開ページを開き、共有ボタンから「ホーム画面に追加」を選びます。
+
+インストール後も、本の情報と表紙画像は端末内のIndexedDBへ保存されます。
+
 ## GitHub Pages
 
 `.github/workflows/deploy-pages.yml` が `main` ブランチへのpushを検知し、静的ファイルをビルドして公開します。
