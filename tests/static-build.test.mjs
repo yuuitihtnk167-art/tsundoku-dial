@@ -3,11 +3,12 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 test("GitHub Pages用の静的アプリを生成する", async () => {
-  const [html, app, storage, image, manifest, serviceWorker] = await Promise.all([
+  const [html, app, storage, image, styles, manifest, serviceWorker] = await Promise.all([
     readFile(new URL("../dist/index.html", import.meta.url), "utf8"),
     readFile(new URL("../src/App.tsx", import.meta.url), "utf8"),
     readFile(new URL("../src/storage.ts", import.meta.url), "utf8"),
     readFile(new URL("../src/image.ts", import.meta.url), "utf8"),
+    readFile(new URL("../src/styles.css", import.meta.url), "utf8"),
     readFile(new URL("../dist/manifest.webmanifest", import.meta.url), "utf8"),
     readFile(new URL("../dist/sw.js", import.meta.url), "utf8"),
   ]);
@@ -33,7 +34,11 @@ test("GitHub Pages用の静的アプリを生成する", async () => {
   assert.match(app, /出版社、公式書籍ページ、著者情報などを優先/);
   assert.match(app, /200～300文字程度を目安にする/);
   assert.match(app, /text: bookAnalysisPrompt/);
-  assert.match(app, /setTimeout\(\(\) => \{[\s\S]*setDraggingBookId\(bookId\)/);
+  assert.match(app, /}, 300\)/);
+  assert.match(app, /distance > 18/);
+  assert.match(app, /selectedBookId/);
+  assert.match(app, /つかみました。もう一度動かすと並べ替え・削除できます。/);
+  assert.match(styles, /\.book-card\.is-selected \{ touch-action: none; \}/);
   assert.match(app, /data-book-id=\{book\.id\}/);
   assert.match(app, /delete-drop-zone/);
   assert.match(app, /saveBookOrder/);
@@ -63,6 +68,6 @@ test("GitHub Pages用の静的アプリを生成する", async () => {
     parsedManifest.icons.map(({ sizes }) => sizes),
     ["192x192", "512x512"],
   );
-  assert.match(serviceWorker, /tsundoku-dial-v9/);
+  assert.match(serviceWorker, /tsundoku-dial-v10/);
   assert.match(serviceWorker, /caches\.delete/);
 });

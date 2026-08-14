@@ -50,8 +50,10 @@ type PreparedShare = {
 type BookPointerStart = {
   pointerId: number;
   bookId: string;
-  x: number;
-  y: number;
+  startX: number;
+  startY: number;
+  currentX: number;
+  currentY: number;
 };
 
 const cropHandles: Array<{ handle: CropHandle; label: string }> = [
@@ -145,6 +147,7 @@ export function BookLibrary() {
   const [preparedShare, setPreparedShare] = useState<PreparedShare | null>(null);
   const [sharing, setSharing] = useState(false);
   const [promptCopied, setPromptCopied] = useState(false);
+  const [selectedBookId, setSelectedBookId] = useState<string | null>(null);
   const [draggingBookId, setDraggingBookId] = useState<string | null>(null);
   const [dragPosition, setDragPosition] = useState<{ x: number; y: number } | null>(null);
   const [deleteDropActive, setDeleteDropActive] = useState(false);
@@ -159,7 +162,10 @@ export function BookLibrary() {
   const booksRef = useRef<Book[]>([]);
   const longPressTimerRef = useRef<number | null>(null);
   const bookPointerStartRef = useRef<BookPointerStart | null>(null);
+  const selectedBookIdRef = useRef<string | null>(null);
   const draggingBookIdRef = useRef<string | null>(null);
+  const dragOriginRef = useRef<{ x: number; y: number } | null>(null);
+  const dragMovedRef = useRef(false);
   const deleteDropActiveRef = useRef(false);
   const lastReorderTargetRef = useRef<string | null>(null);
   const suppressBookClickRef = useRef(false);
@@ -208,6 +214,16 @@ export function BookLibrary() {
       window.clearTimeout(longPressTimerRef.current);
     }
   }, []);
+  useEffect(() => {
+    if (!selectedBookId) return;
+    const clearSelectionOutsideBook = (event: PointerEvent) => {
+      if (event.target instanceof Element && event.target.closest("[data-book-id]")) return;
+      selectedBookIdRef.current = null;
+      setSelectedBookId(null);
+    };
+    document.addEventListener("pointerdown", clearSelectionOutsideBook);
+    return () => document.removeEventListener("pointerdown", clearSelectionOutsideBook);
+  }, [selectedBookId]);
   useEffect(() => stopCamera, [stopCamera]);
   useEffect(() => {
     if (!cameraActive) return;
@@ -402,7 +418,7 @@ export function BookLibrary() {
     setCrop(selectedBook.crop ?? fullCrop);
     setCropMessage(
       selectedBook.original
-        ? "保存時の元画像から表紙を微調整できます。"
+        ? "保存時の元画像から表紙を修正できます。"
         : "この本には元画像がないため、現在の表紙の範囲内で調整できます。",
     );
     setPromptCopied(false);
@@ -484,6 +500,23 @@ export function BookLibrary() {
     setDeleteDropActive(active);
   }
 
+  function selectBookForDragging(bookId: string, x: number, y: number) {
+    selectedBookIdRef.current = bookId;
+    setSelectedBookId(bookId);
+    draggingBookIdRef.current = bookId;
+    dragOriginRef.current = { x, y };
+    dragMovedRef.current = false;
+    lastReorderTargetRef.current = bookId;
+    suppressBookClickRef.current = true;
+    setDraggingBookId(bookId);
+    setDragPosition({ x, y });
+  }
+
+  function clearBookSelection() {
+    selectedBookIdRef.current = null;
+    setSelectedBookId(null);
+  }
+
   function startBookPress(event: ReactPointerEvent<HTMLButtonElement>, bookId: string) {
     if (!event.isPrimary || (event.pointerType === "mouse" && event.button !== 0)) return;
     clearLongPressTimer();
@@ -491,27 +524,33 @@ export function BookLibrary() {
     bookPointerStartRef.current = {
       pointerId: event.pointerId,
       bookId,
-      x: event.clientX,
-      y: event.clientY,
+      startX: event.clientX,
+      startY: event.clientY,
+      currentX: event.clientX,
+      currentY: event.clientY,
     };
+    if (selectedBookIdRef.current === bookId) {
+      selectBookForDragging(bookId, event.clientX, event.clientY);
+      return;
+    }
     longPressTimerRef.current = window.setTimeout(() => {
-      draggingBookIdRef.current = bookId;
-      lastReorderTargetRef.current = bookId;
-      suppressBookClickRef.current = true;
-      setDraggingBookId(bookId);
-      setDragPosition({ x: event.clientX, y: event.clientY });
+      const pointer = bookPointerStartRef.current;
+      if (!pointer || pointer.bookId !== bookId) return;
+      selectBookForDragging(bookId, pointer.currentX, pointer.currentY);
       navigator.vibrate?.(25);
-    }, 450);
+    }, 300);
   }
 
   function moveBook(event: ReactPointerEvent<HTMLButtonElement>) {
     const pointerStart = bookPointerStartRef.current;
     if (!pointerStart || pointerStart.pointerId !== event.pointerId) return;
+    pointerStart.currentX = event.clientX;
+    pointerStart.currentY = event.clientY;
     const distance = Math.hypot(
-      event.clientX - pointerStart.x,
-      event.clientY - pointerStart.y,
+      event.clientX - pointerStart.startX,
+      event.clientY - pointerStart.startY,
     );
-    if (!draggingBookIdRef.current && distance > 10) {
+    if (!draggingBookIdRef.current && distance > 18) {
       clearLongPressTimer();
       return;
     }
@@ -519,6 +558,10 @@ export function BookLibrary() {
     const draggedId = draggingBookIdRef.current;
     if (!draggedId) return;
     event.preventDefault();
+    const dragOrigin = dragOriginRef.current;
+    if (dragOrigin && Math.hypot(event.clientX - dragOrigin.x, event.clientY - dragOrigin.y) > 4) {
+      dragMovedRef.current = true;
+    }
     setDragPosition({ x: event.clientX, y: event.clientY });
 
     const element = document.elementFromPoint(
@@ -584,7 +627,10 @@ export function BookLibrary() {
     const draggedId = draggingBookIdRef.current;
     if (!draggedId) return;
     const shouldDelete = allowDelete && deleteDropActiveRef.current;
+    const shouldFinishDrag = allowDelete && dragMovedRef.current;
     draggingBookIdRef.current = null;
+    dragOriginRef.current = null;
+    dragMovedRef.current = false;
     lastReorderTargetRef.current = null;
     setDeleteTarget(false);
     setDraggingBookId(null);
@@ -594,14 +640,17 @@ export function BookLibrary() {
     }, 0);
 
     if (shouldDelete) {
+      clearBookSelection();
       void removeDraggedBook(draggedId);
-    } else {
+    } else if (shouldFinishDrag) {
+      clearBookSelection();
       void persistCurrentBookOrder();
     }
   }
 
   function openBook(book: Book) {
     if (suppressBookClickRef.current) return;
+    clearBookSelection();
     setSelectedBook(book);
   }
 
@@ -733,11 +782,15 @@ export function BookLibrary() {
           <div className="book-grid">
             {books.map((book, index) => (
               <button
-                className={book.id === draggingBookId ? "book-card is-dragging" : "book-card"}
+                className={[
+                  "book-card",
+                  book.id === selectedBookId ? "is-selected" : "",
+                  book.id === draggingBookId ? "is-dragging" : "",
+                ].filter(Boolean).join(" ")}
                 type="button"
                 key={book.id}
                 data-book-id={book.id}
-                aria-pressed={book.id === draggingBookId}
+                aria-pressed={book.id === selectedBookId}
                 onClick={() => openBook(book)}
                 onContextMenu={(event) => event.preventDefault()}
                 onPointerDown={(event) => startBookPress(event, book.id)}
@@ -753,6 +806,11 @@ export function BookLibrary() {
               </button>
             ))}
           </div>
+        )}
+        {selectedBookId && !draggingBookId && (
+          <p className="book-selection-hint" role="status">
+            つかみました。もう一度動かすと並べ替え・削除できます。空いている場所をタップすると解除します。
+          </p>
         )}
       </section>
 
@@ -793,7 +851,7 @@ export function BookLibrary() {
           <div className="dialog-heading">
             <div>
               <p className="eyebrow">{editingBookId ? "EDIT COVER" : "NEW BOOK"}</p>
-              <h2>{editingBookId ? "表紙を微調整" : "一冊を積む"}</h2>
+              <h2>{editingBookId ? "修正" : "一冊を積む"}</h2>
             </div>
             <button className="close-button" type="button" onClick={closeAddDialog} aria-label="閉じる">×</button>
           </div>
@@ -918,7 +976,7 @@ export function BookLibrary() {
           </div>
           {error && <p className="error-message" role="alert">{error}</p>}
           <button className="save-button" type="submit" disabled={saving || detecting || !photo}>
-            {saving ? "保存しています…" : editingBookId ? "表紙を更新する" : "この本を積む"}
+            {saving ? "保存しています…" : editingBookId ? "更新" : "この本を積む"}
           </button>
         </form>
       </dialog>
@@ -938,7 +996,7 @@ export function BookLibrary() {
               <dl><div><dt>積んだ日</dt><dd>{formatDate(selectedBook.createdAt)}</dd></div></dl>
               {selectedBook.notes && <p className="book-notes">{selectedBook.notes}</p>}
               <button className="edit-cover-button" type="button" onClick={editSelectedCover}>
-                表紙を微調整
+                修正
               </button>
               {!selectedBook.isbn && <p className="barcode-note">バーコードからの書籍情報取得は、次のアップデートで追加予定です。</p>}
             </div>
