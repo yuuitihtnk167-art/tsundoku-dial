@@ -145,7 +145,7 @@ const bookAnalysisPrompt = [
 
 const minimumCropSize = 8;
 const bookDragScrollEdge = 88;
-const bookDragMaximumScrollSpeed = 28;
+const bookDragMaximumScrollSpeed = 56;
 
 function clamp(value: number, minimum: number, maximum: number) {
   return Math.min(maximum, Math.max(minimum, value));
@@ -1160,7 +1160,7 @@ export function BookLibrary() {
           setError("");
         }}
       >
-        <form className={photo ? "has-photo" : undefined} onSubmit={saveBook}>
+        <form onSubmit={saveBook}>
           <div className="dialog-heading">
             <div>
               <p className="eyebrow">{editingBookId ? "EDIT COVER" : "NEW BOOK"}</p>
