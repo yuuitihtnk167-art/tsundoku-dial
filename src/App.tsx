@@ -144,9 +144,27 @@ const bookAnalysisPrompt = [
 ].join("\n");
 
 const minimumCropSize = 8;
+const bookDragScrollEdge = 88;
+const bookDragMaximumScrollSpeed = 20;
 
 function clamp(value: number, minimum: number, maximum: number) {
   return Math.min(maximum, Math.max(minimum, value));
+}
+
+function getBookDragScrollDelta(clientY: number, viewportHeight: number) {
+  const edge = Math.min(bookDragScrollEdge, viewportHeight / 4);
+  if (clientY < edge) {
+    return -Math.ceil(
+      clamp((edge - clientY) / edge, 0, 1) * bookDragMaximumScrollSpeed,
+    );
+  }
+  if (clientY > viewportHeight - edge) {
+    return Math.ceil(
+      clamp((clientY - (viewportHeight - edge)) / edge, 0, 1) *
+        bookDragMaximumScrollSpeed,
+    );
+  }
+  return 0;
 }
 
 const lockedViewport = "width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no";
@@ -198,6 +216,7 @@ export function BookLibrary() {
   const dialPointerRef = useRef<DialPointer | null>(null);
   const booksRef = useRef<Book[]>([]);
   const longPressTimerRef = useRef<number | null>(null);
+  const bookAutoScrollFrameRef = useRef<number | null>(null);
   const bookPointerStartRef = useRef<BookPointerStart | null>(null);
   const selectedBookIdRef = useRef<string | null>(null);
   const draggingBookIdRef = useRef<string | null>(null);
@@ -253,6 +272,9 @@ export function BookLibrary() {
   useEffect(() => () => {
     if (longPressTimerRef.current !== null) {
       window.clearTimeout(longPressTimerRef.current);
+    }
+    if (bookAutoScrollFrameRef.current !== null) {
+      window.cancelAnimationFrame(bookAutoScrollFrameRef.current);
     }
   }, []);
   useEffect(() => {
@@ -621,6 +643,80 @@ export function BookLibrary() {
     setCategoryDropActive(category);
   }
 
+  function updateBookDragTargets(clientX: number, clientY: number, draggedId: string) {
+    const element = document.elementFromPoint(clientX, clientY) as HTMLElement | null;
+    const overDelete = Boolean(element?.closest(".delete-drop-zone"));
+    setDeleteTarget(overDelete);
+    if (overDelete) {
+      setCategoryTarget(null);
+      return;
+    }
+
+    const categoryValue = element
+      ?.closest<HTMLElement>("[data-category-drop]")
+      ?.dataset.categoryDrop as BookCategory | undefined;
+    const overCategory = bookCategories.some((category) => category.id === categoryValue)
+      ? categoryValue ?? null
+      : null;
+    setCategoryTarget(overCategory);
+    if (overCategory) return;
+
+    const targetId = element?.closest<HTMLElement>("[data-book-id]")?.dataset.bookId;
+    if (!targetId || targetId === draggedId) {
+      lastReorderTargetRef.current = null;
+      return;
+    }
+    if (lastReorderTargetRef.current === targetId) return;
+    lastReorderTargetRef.current = targetId;
+
+    setBooks((current) => {
+      const draggedIndex = current.findIndex((book) => book.id === draggedId);
+      const targetIndex = current.findIndex((book) => book.id === targetId);
+      if (draggedIndex < 0 || targetIndex < 0) return current;
+      const next = [...current];
+      const [draggedBook] = next.splice(draggedIndex, 1);
+      next.splice(targetIndex, 0, draggedBook);
+      booksRef.current = next;
+      return next;
+    });
+  }
+
+  function stopBookAutoScroll() {
+    if (bookAutoScrollFrameRef.current === null) return;
+    window.cancelAnimationFrame(bookAutoScrollFrameRef.current);
+    bookAutoScrollFrameRef.current = null;
+  }
+
+  function startBookAutoScroll() {
+    if (bookAutoScrollFrameRef.current !== null) return;
+
+    const scrollFrame = () => {
+      bookAutoScrollFrameRef.current = null;
+      const pointer = bookPointerStartRef.current;
+      const draggedId = draggingBookIdRef.current;
+      if (!pointer || !draggedId) return;
+
+      const element = document.elementFromPoint(
+        pointer.currentX,
+        pointer.currentY,
+      ) as HTMLElement | null;
+      if (element?.closest(".classification-tray")) return;
+
+      const scrollDelta = getBookDragScrollDelta(pointer.currentY, window.innerHeight);
+      if (scrollDelta === 0) return;
+
+      const previousScrollY = window.scrollY;
+      window.scrollBy(0, scrollDelta);
+      if (window.scrollY === previousScrollY) return;
+
+      dragMovedRef.current = true;
+      updateBookDragTargets(pointer.currentX, pointer.currentY, draggedId);
+      bookAutoScrollFrameRef.current = window.requestAnimationFrame(scrollFrame);
+    };
+
+    bookAutoScrollFrameRef.current = window.requestAnimationFrame(scrollFrame);
+  }
+
   function selectBookForDragging(bookId: string, x: number, y: number) {
     selectedBookIdRef.current = bookId;
     setSelectedBookId(bookId);
@@ -684,45 +780,8 @@ export function BookLibrary() {
       dragMovedRef.current = true;
     }
     setDragPosition({ x: event.clientX, y: event.clientY });
-
-    const element = document.elementFromPoint(
-      event.clientX,
-      event.clientY,
-    ) as HTMLElement | null;
-    const overDelete = Boolean(element?.closest(".delete-drop-zone"));
-    setDeleteTarget(overDelete);
-    if (overDelete) {
-      setCategoryTarget(null);
-      return;
-    }
-
-    const categoryValue = element
-      ?.closest<HTMLElement>("[data-category-drop]")
-      ?.dataset.categoryDrop as BookCategory | undefined;
-    const overCategory = bookCategories.some((category) => category.id === categoryValue)
-      ? categoryValue ?? null
-      : null;
-    setCategoryTarget(overCategory);
-    if (overCategory) return;
-
-    const targetId = element?.closest<HTMLElement>("[data-book-id]")?.dataset.bookId;
-    if (!targetId || targetId === draggedId) {
-      lastReorderTargetRef.current = null;
-      return;
-    }
-    if (lastReorderTargetRef.current === targetId) return;
-    lastReorderTargetRef.current = targetId;
-
-    setBooks((current) => {
-      const draggedIndex = current.findIndex((book) => book.id === draggedId);
-      const targetIndex = current.findIndex((book) => book.id === targetId);
-      if (draggedIndex < 0 || targetIndex < 0) return current;
-      const next = [...current];
-      const [draggedBook] = next.splice(draggedIndex, 1);
-      next.splice(targetIndex, 0, draggedBook);
-      booksRef.current = next;
-      return next;
-    });
+    updateBookDragTargets(event.clientX, event.clientY, draggedId);
+    startBookAutoScroll();
   }
 
   async function removeDraggedBook(bookId: string) {
@@ -774,6 +833,7 @@ export function BookLibrary() {
     const pointerStart = bookPointerStartRef.current;
     if (!pointerStart || pointerStart.pointerId !== event.pointerId) return;
     clearLongPressTimer();
+    stopBookAutoScroll();
     bookPointerStartRef.current = null;
 
     const draggedId = draggingBookIdRef.current;
