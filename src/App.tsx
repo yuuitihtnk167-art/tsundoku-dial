@@ -28,6 +28,7 @@ import {
   type BookCategory,
   type StoredBook,
 } from "./storage";
+import { lookupBookByIsbn } from "./book-lookup";
 import { getTitleMatch } from "./book-match";
 import { IsbnScanner } from "./IsbnScanner";
 
@@ -223,9 +224,14 @@ export function BookLibrary() {
   const [notes, setNotes] = useState("");
   const [isbn, setIsbn] = useState<string | null>(null);
   const [duplicateConfirmed, setDuplicateConfirmed] = useState(false);
+  const [lookingUpBook, setLookingUpBook] = useState(false);
+  const [bookLookupMessage, setBookLookupMessage] = useState("");
   const [saving, setSaving] = useState(false);
   const addDialogRef = useRef<HTMLDialogElement>(null);
   const detailDialogRef = useRef<HTMLDialogElement>(null);
+  const bookLookupAbortRef = useRef<AbortController | null>(null);
+  const duplicateWarningRef = useRef<HTMLElement>(null);
+  const titleRef = useRef("");
   const videoRef = useRef<HTMLVideoElement>(null);
   const cameraStreamRef = useRef<MediaStream | null>(null);
   const cropDragRef = useRef<CropDrag | null>(null);
@@ -260,11 +266,84 @@ export function BookLibrary() {
     if (titleMatch === "similar") reasons.push("タイトルが類似");
     return reasons.length > 0 ? [{ book, reasons }] : [];
   });
+  const duplicateCandidateKey = duplicateCandidates
+    .map(({ book, reasons }) => `${book.id}:${reasons.join(",")}`)
+    .join("|");
+
+  const stopBookLookup = useCallback(() => {
+    bookLookupAbortRef.current?.abort();
+    bookLookupAbortRef.current = null;
+    setLookingUpBook(false);
+  }, []);
 
   const updateIsbn = useCallback((nextIsbn: string | null) => {
+    stopBookLookup();
     setIsbn(nextIsbn);
     setDuplicateConfirmed(false);
-  }, []);
+    if (!nextIsbn) {
+      setBookLookupMessage("");
+      return;
+    }
+
+    const controller = new AbortController();
+    bookLookupAbortRef.current = controller;
+    const lookupTimeout = window.setTimeout(() => {
+      if (bookLookupAbortRef.current !== controller) return;
+      setBookLookupMessage("書籍情報の取得に時間がかかっています。表紙撮影とタイトル入力で続けられます。");
+      controller.abort();
+    }, 10_000);
+    setLookingUpBook(true);
+    setBookLookupMessage("ISBNからタイトルと表紙を探しています…");
+    void lookupBookByIsbn(nextIsbn, controller.signal)
+      .then(async (result) => {
+        if (controller.signal.aborted) return;
+        if (result.title && !titleRef.current.trim()) {
+          titleRef.current = result.title;
+          setTitle(result.title);
+          setDuplicateConfirmed(false);
+        }
+
+        let coverApplied = false;
+        if (result.cover) {
+          try {
+            const normalized = await normalizePhoto(result.cover);
+            if (controller.signal.aborted) return;
+            setPhoto(normalized);
+            setPhotoUrl((current) => {
+              if (current) URL.revokeObjectURL(current);
+              return URL.createObjectURL(normalized);
+            });
+            setPhotoAspectRatio(2 / 3);
+            setCrop(fullCrop);
+            setCropMessage("ISBNから表紙を取得しました。必要ならガイド付きで撮り直せます。");
+            coverApplied = true;
+          } catch {
+            coverApplied = false;
+          }
+        }
+
+        if (result.title && coverApplied) {
+          setBookLookupMessage("タイトルと表紙を取得しました。");
+        } else if (result.title) {
+          setBookLookupMessage("タイトルを取得しました。表紙はガイド付きで撮影してください。");
+        } else if (coverApplied) {
+          setBookLookupMessage("表紙を取得しました。タイトルを入力してください。");
+        } else {
+          setBookLookupMessage("情報を取得できませんでした。タイトル入力と表紙撮影をお願いします。");
+        }
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) {
+          setBookLookupMessage("書籍情報を取得できませんでした。タイトル入力と表紙撮影をお願いします。");
+        }
+      })
+      .finally(() => {
+        window.clearTimeout(lookupTimeout);
+        if (bookLookupAbortRef.current !== controller) return;
+        bookLookupAbortRef.current = null;
+        setLookingUpBook(false);
+      });
+  }, [stopBookLookup]);
 
   const loadBooks = useCallback(async () => {
     try {
@@ -318,6 +397,14 @@ export function BookLibrary() {
     return () => document.removeEventListener("pointerdown", clearSelectionOutsideBook);
   }, [selectedBookId]);
   useEffect(() => stopCamera, [stopCamera]);
+  useEffect(() => () => bookLookupAbortRef.current?.abort(), []);
+  useEffect(() => {
+    if (!duplicateCandidateKey || duplicateConfirmed) return;
+    const frame = window.requestAnimationFrame(() => {
+      duplicateWarningRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [duplicateCandidateKey, duplicateConfirmed]);
   useEffect(() => {
     if (!cameraActive) return;
     const video = videoRef.current;
@@ -407,10 +494,13 @@ export function BookLibrary() {
     setPhotoAspectRatio(2 / 3);
     setCropMessage("");
     setPromptCopied(false);
+    titleRef.current = "";
     setTitle("");
     setNotes("");
     setIsbn(null);
     setDuplicateConfirmed(false);
+    stopBookLookup();
+    setBookLookupMessage("");
     setError("");
     setAddDialogOpen(true);
     addDialogRef.current?.showModal();
@@ -418,6 +508,7 @@ export function BookLibrary() {
 
   function closeAddDialog() {
     stopCamera();
+    stopBookLookup();
     setAddDialogOpen(false);
     addDialogRef.current?.close();
   }
@@ -452,6 +543,8 @@ export function BookLibrary() {
   }
 
   async function startCamera() {
+    stopBookLookup();
+    if (isbn) setBookLookupMessage("ISBNは記録済みです。表紙をガイドに合わせて撮影してください。");
     setError("");
     if (!navigator.mediaDevices?.getUserMedia) {
       setError("この端末またはブラウザでは、ガイド付きカメラを利用できません。");
@@ -519,6 +612,7 @@ export function BookLibrary() {
         : "この本には元画像がないため、現在の表紙の範囲内で調整できます。",
     );
     setPromptCopied(false);
+    titleRef.current = selectedBook.title;
     setTitle(selectedBook.title);
     setNotes(selectedBook.notes);
     setIsbn(selectedBook.isbn);
@@ -1218,6 +1312,7 @@ export function BookLibrary() {
         ref={addDialogRef}
         onClose={() => {
           stopCamera();
+          stopBookLookup();
           setAddDialogOpen(false);
           setError("");
         }}
@@ -1230,6 +1325,38 @@ export function BookLibrary() {
             </div>
             <button className="close-button" type="button" onClick={closeAddDialog} aria-label="閉じる">×</button>
           </div>
+
+          {duplicateCandidates.length > 0 && !duplicateConfirmed && (
+            <section ref={duplicateWarningRef} className="duplicate-warning" aria-labelledby="duplicate-warning-title">
+              <h3 id="duplicate-warning-title">重複している可能性があります</h3>
+              <p>次の本を確認して、登録をやめるか続けるか選んでください。</p>
+              <div className="duplicate-list">
+                {duplicateCandidates.map(({ book, reasons }) => (
+                  <article className="duplicate-candidate" key={book.id}>
+                    <img src={book.coverUrl} alt="" />
+                    <div>
+                      <strong>{book.title}</strong>
+                      <small>{formatDate(book.createdAt)}</small>
+                      <span>{reasons.join("・")}</span>
+                    </div>
+                  </article>
+                ))}
+              </div>
+              <div className="duplicate-actions">
+                <button className="duplicate-cancel-button" type="button" onClick={closeAddDialog}>やめる</button>
+                <button
+                  className="duplicate-confirm-button"
+                  type="button"
+                  onClick={() => {
+                    setDuplicateConfirmed(true);
+                    setError("");
+                  }}
+                >
+                  続ける
+                </button>
+              </div>
+            </section>
+          )}
 
           {!photoUrl ? (
             cameraActive ? (
@@ -1328,7 +1455,14 @@ export function BookLibrary() {
             </div>
           )}
 
-          {photo && addDialogOpen && <IsbnScanner isbn={isbn} onIsbnChange={updateIsbn} />}
+          {!cameraActive && addDialogOpen && (
+            <>
+              <IsbnScanner isbn={isbn} onIsbnChange={updateIsbn} />
+              {bookLookupMessage && (
+                <p className="book-lookup-message" aria-live="polite">{bookLookupMessage}</p>
+              )}
+            </>
+          )}
 
           {photo && (
             <div className="share-panel">
@@ -1354,45 +1488,15 @@ export function BookLibrary() {
 
           <div className="fields">
             <label><span>タイトル</span><input value={title} onChange={(event) => {
+              titleRef.current = event.target.value;
               setTitle(event.target.value);
               setDuplicateConfirmed(false);
             }} placeholder="あとからでも入力できます" maxLength={160} /></label>
             <label><span>メモ <small>任意</small></span><textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="この本を選んだ理由など" maxLength={1000} rows={3} /></label>
           </div>
-          {duplicateCandidates.length > 0 && (
-            <section className="duplicate-warning" aria-labelledby="duplicate-warning-title">
-              <h3 id="duplicate-warning-title">重複している可能性があります</h3>
-              <p>次の本を確認してから、登録するか判断してください。</p>
-              <div className="duplicate-list">
-                {duplicateCandidates.map(({ book, reasons }) => (
-                  <article className="duplicate-candidate" key={book.id}>
-                    <img src={book.coverUrl} alt="" />
-                    <div>
-                      <strong>{book.title}</strong>
-                      <small>{formatDate(book.createdAt)}</small>
-                      <span>{reasons.join("・")}</span>
-                    </div>
-                  </article>
-                ))}
-              </div>
-              {duplicateConfirmed ? (
-                <p className="duplicate-confirmed" role="status">確認済みです。この内容で登録できます。</p>
-              ) : (
-                <button
-                  className="duplicate-confirm-button"
-                  type="button"
-                  onClick={() => {
-                    setDuplicateConfirmed(true);
-                    setError("");
-                  }}
-                >
-                  確認して、それでも登録する
-                </button>
-              )}
-            </section>
-          )}
+
           {error && <p className="error-message" role="alert">{error}</p>}
-          <button className="save-button" type="submit" disabled={saving || detecting || !photo}>
+          <button className="save-button" type="submit" disabled={saving || detecting || lookingUpBook || !photo}>
             {saving ? "保存しています…" : editingBookId ? "更新" : "この本を積む"}
           </button>
         </form>
