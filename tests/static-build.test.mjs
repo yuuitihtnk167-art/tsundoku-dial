@@ -56,7 +56,9 @@ test("GitHub Pages用の静的アプリを生成する", async () => {
   assert.doesNotMatch(app, /積んだ本には/);
   assert.match(app, /role="slider"/);
   assert.match(app, /finishDialTurn/);
-  assert.match(app, /Math\.round\(pointer\.rotation \/ 72\) \* 72/);
+  assert.match(app, /pointer\.snappedRotation = snappedRotation/);
+  assert.match(app, /navigator\.vibrate\?\.\(\[12, 8, 18\]\)/);
+  assert.match(app, /className="dial-channel-window"/);
   assert.match(app, /今読んでいる/);
   assert.match(app, /もう一度読みたい/);
   assert.match(app, /持っている/);
@@ -67,6 +69,8 @@ test("GitHub Pages用の静的アプリを生成する", async () => {
   assert.match(app, /分類盤を表示する/);
   assert.match(app, /分類盤を閉じる/);
   assert.match(styles, /\.dial-knob/);
+  assert.match(styles, /repeating-conic-gradient/);
+  assert.match(styles, /\.dial-channel-window/);
   assert.match(styles, /\.classification-tray/);
   assert.match(app, /data-book-id=\{book\.id\}/);
   assert.match(app, /delete-drop-zone/);
@@ -100,6 +104,6 @@ test("GitHub Pages用の静的アプリを生成する", async () => {
     parsedManifest.icons.map(({ sizes }) => sizes),
     ["192x192", "512x512"],
   );
-  assert.match(serviceWorker, /tsundoku-dial-v17/);
+  assert.match(serviceWorker, /tsundoku-dial-v18/);
   assert.match(serviceWorker, /caches\.delete/);
 });

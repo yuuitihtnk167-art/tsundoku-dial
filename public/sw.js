@@ -1,4 +1,4 @@
-const CACHE_NAME = "tsundoku-dial-v17";
+const CACHE_NAME = "tsundoku-dial-v18";
 const APP_SHELL = [
   "./",
   "./manifest.webmanifest",
