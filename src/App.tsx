@@ -28,9 +28,16 @@ import {
   type BookCategory,
   type StoredBook,
 } from "./storage";
+import { getTitleMatch } from "./book-match";
+import { IsbnScanner } from "./IsbnScanner";
 
 type Book = StoredBook & {
   coverUrl: string;
+};
+
+type DuplicateCandidate = {
+  book: Book;
+  reasons: string[];
 };
 
 type CropHandle = "move" | "n" | "ne" | "e" | "se" | "s" | "sw" | "w" | "nw";
@@ -189,6 +196,7 @@ export function BookLibrary() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [selectedBook, setSelectedBook] = useState<Book | null>(null);
+  const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [editingBookId, setEditingBookId] = useState<string | null>(null);
   const [photo, setPhoto] = useState<Blob | null>(null);
   const [photoUrl, setPhotoUrl] = useState("");
@@ -213,6 +221,8 @@ export function BookLibrary() {
   const [deleteDropActive, setDeleteDropActive] = useState(false);
   const [title, setTitle] = useState("");
   const [notes, setNotes] = useState("");
+  const [isbn, setIsbn] = useState<string | null>(null);
+  const [duplicateConfirmed, setDuplicateConfirmed] = useState(false);
   const [saving, setSaving] = useState(false);
   const addDialogRef = useRef<HTMLDialogElement>(null);
   const detailDialogRef = useRef<HTMLDialogElement>(null);
@@ -241,6 +251,20 @@ export function BookLibrary() {
   const activeCategoryOption =
     bookCategories.find((category) => category.id === activeCategory) ?? bookCategories[0];
   const visibleBooks = books.filter((book) => getBookCategory(book) === activeCategory);
+  const duplicateCandidates: DuplicateCandidate[] = books.flatMap((book) => {
+    if (book.id === editingBookId) return [];
+    const reasons: string[] = [];
+    if (isbn && book.isbn === isbn) reasons.push("ISBNが一致");
+    const titleMatch = getTitleMatch(title, book.title);
+    if (titleMatch === "exact") reasons.push("タイトルが一致");
+    if (titleMatch === "similar") reasons.push("タイトルが類似");
+    return reasons.length > 0 ? [{ book, reasons }] : [];
+  });
+
+  const updateIsbn = useCallback((nextIsbn: string | null) => {
+    setIsbn(nextIsbn);
+    setDuplicateConfirmed(false);
+  }, []);
 
   const loadBooks = useCallback(async () => {
     try {
@@ -385,12 +409,16 @@ export function BookLibrary() {
     setPromptCopied(false);
     setTitle("");
     setNotes("");
+    setIsbn(null);
+    setDuplicateConfirmed(false);
     setError("");
+    setAddDialogOpen(true);
     addDialogRef.current?.showModal();
   }
 
   function closeAddDialog() {
     stopCamera();
+    setAddDialogOpen(false);
     addDialogRef.current?.close();
   }
 
@@ -493,9 +521,12 @@ export function BookLibrary() {
     setPromptCopied(false);
     setTitle(selectedBook.title);
     setNotes(selectedBook.notes);
+    setIsbn(selectedBook.isbn);
+    setDuplicateConfirmed(false);
     setError("");
     detailDialogRef.current?.close();
     setSelectedBook(null);
+    setAddDialogOpen(true);
     addDialogRef.current?.showModal();
   }
 
@@ -939,6 +970,10 @@ export function BookLibrary() {
       setError("表紙を撮影してください。");
       return;
     }
+    if (duplicateCandidates.length > 0 && !duplicateConfirmed) {
+      setError("重複候補を確認してから、登録するか判断してください。");
+      return;
+    }
     setSaving(true);
     setError("");
     try {
@@ -949,6 +984,7 @@ export function BookLibrary() {
         crop,
         title: title.trim() || "タイトル未設定",
         notes: notes.trim(),
+        isbn,
       };
       const storedBook = editingBookId
         ? await updateBook({ id: editingBookId, ...values })
@@ -1182,6 +1218,7 @@ export function BookLibrary() {
         ref={addDialogRef}
         onClose={() => {
           stopCamera();
+          setAddDialogOpen(false);
           setError("");
         }}
       >
@@ -1291,6 +1328,8 @@ export function BookLibrary() {
             </div>
           )}
 
+          {photo && addDialogOpen && <IsbnScanner isbn={isbn} onIsbnChange={updateIsbn} />}
+
           {photo && (
             <div className="share-panel">
               <button
@@ -1314,9 +1353,44 @@ export function BookLibrary() {
           )}
 
           <div className="fields">
-            <label><span>タイトル</span><input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="あとからでも入力できます" maxLength={160} /></label>
+            <label><span>タイトル</span><input value={title} onChange={(event) => {
+              setTitle(event.target.value);
+              setDuplicateConfirmed(false);
+            }} placeholder="あとからでも入力できます" maxLength={160} /></label>
             <label><span>メモ <small>任意</small></span><textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="この本を選んだ理由など" maxLength={1000} rows={3} /></label>
           </div>
+          {duplicateCandidates.length > 0 && (
+            <section className="duplicate-warning" aria-labelledby="duplicate-warning-title">
+              <h3 id="duplicate-warning-title">重複している可能性があります</h3>
+              <p>次の本を確認してから、登録するか判断してください。</p>
+              <div className="duplicate-list">
+                {duplicateCandidates.map(({ book, reasons }) => (
+                  <article className="duplicate-candidate" key={book.id}>
+                    <img src={book.coverUrl} alt="" />
+                    <div>
+                      <strong>{book.title}</strong>
+                      <small>{formatDate(book.createdAt)}</small>
+                      <span>{reasons.join("・")}</span>
+                    </div>
+                  </article>
+                ))}
+              </div>
+              {duplicateConfirmed ? (
+                <p className="duplicate-confirmed" role="status">確認済みです。この内容で登録できます。</p>
+              ) : (
+                <button
+                  className="duplicate-confirm-button"
+                  type="button"
+                  onClick={() => {
+                    setDuplicateConfirmed(true);
+                    setError("");
+                  }}
+                >
+                  確認して、それでも登録する
+                </button>
+              )}
+            </section>
+          )}
           {error && <p className="error-message" role="alert">{error}</p>}
           <button className="save-button" type="submit" disabled={saving || detecting || !photo}>
             {saving ? "保存しています…" : editingBookId ? "更新" : "この本を積む"}
@@ -1341,7 +1415,6 @@ export function BookLibrary() {
               <button className="edit-cover-button" type="button" onClick={editSelectedCover}>
                 修正
               </button>
-              {!selectedBook.isbn && <p className="barcode-note">バーコードからの書籍情報取得は、次のアップデートで追加予定です。</p>}
             </div>
           </section>
         )}

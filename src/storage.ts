@@ -59,7 +59,7 @@ export async function getBooks() {
 }
 
 export async function addBook(
-  input: Pick<StoredBook, "title" | "notes" | "cover" | "original" | "crop">,
+  input: Pick<StoredBook, "title" | "notes" | "isbn" | "cover" | "original" | "crop">,
 ) {
   const database = await openDatabase();
   try {
@@ -77,7 +77,7 @@ export async function addBook(
       id: crypto.randomUUID(),
       title: input.title,
       notes: input.notes,
-      isbn: null,
+      isbn: input.isbn,
       createdAt: new Date().toISOString(),
       sortOrder: highestOrder + 1,
       category: "unclassified",
@@ -93,7 +93,7 @@ export async function addBook(
 }
 
 export async function updateBook(
-  input: Pick<StoredBook, "id" | "title" | "notes" | "cover" | "original" | "crop">,
+  input: Pick<StoredBook, "id" | "title" | "notes" | "isbn" | "cover" | "original" | "crop">,
 ) {
   const database = await openDatabase();
   try {
