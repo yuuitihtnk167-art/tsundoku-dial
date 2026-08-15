@@ -66,6 +66,7 @@ type DialPointer = {
   centerY: number;
   lastPointerAngle: number;
   rotation: number;
+  snappedRotation: number;
 };
 
 type BookCategoryOption = {
@@ -588,6 +589,7 @@ export function BookLibrary() {
       centerY,
       lastPointerAngle: dialPointerAngle(event.clientX, event.clientY, centerX, centerY),
       rotation: dialRotation,
+      snappedRotation: dialRotation,
     };
     setDialTurning(true);
   }
@@ -604,13 +606,22 @@ export function BookLibrary() {
     );
     pointer.rotation += normalizeAngleDelta(nextPointerAngle - pointer.lastPointerAngle);
     pointer.lastPointerAngle = nextPointerAngle;
-    setDialRotation(pointer.rotation);
+    const snappedRotation = Math.round(pointer.rotation / 72) * 72;
+    if (snappedRotation === pointer.snappedRotation) return;
+
+    pointer.snappedRotation = snappedRotation;
+    const snappedAngle = ((snappedRotation % 360) + 360) % 360;
+    const option = bookCategories.find((item) => item.angle === snappedAngle) ?? bookCategories[0];
+    setDialRotation(snappedRotation);
+    setActiveCategory(option.id);
+    setClassificationMessage("");
+    navigator.vibrate?.([12, 8, 18]);
   }
 
   function finishDialTurn(event: ReactPointerEvent<HTMLDivElement>) {
     const pointer = dialPointerRef.current;
     if (!pointer || pointer.pointerId !== event.pointerId) return;
-    const snappedRotation = Math.round(pointer.rotation / 72) * 72;
+    const snappedRotation = pointer.snappedRotation;
     const snappedAngle = ((snappedRotation % 360) + 360) % 360;
     const option = bookCategories.find((item) => item.angle === snappedAngle) ?? bookCategories[0];
     dialPointerRef.current = null;
@@ -1014,7 +1025,10 @@ export function BookLibrary() {
                 className="dial-knob"
                 style={{ transform: `rotate(${dialRotation}deg)` }}
               >
-                <i />
+                <i className="dial-pointer" />
+              </span>
+              <span className="dial-channel-window">
+                {String(bookCategories.findIndex((item) => item.id === activeCategory) + 1).padStart(2, "0")}
               </span>
             </div>
           </div>
