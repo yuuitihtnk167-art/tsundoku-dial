@@ -116,9 +116,8 @@ export function IsbnScanner({ isbn, onIsbnChange }: IsbnScannerProps) {
 
   return (
     <section className="isbn-panel" aria-labelledby="isbn-panel-title">
-      <p className="crop-help" id="isbn-panel-title">
-        <span>3</span> 裏表紙のISBNバーコードを読み取ります
-      </p>
+      <p className="isbn-heading" id="isbn-panel-title">ISBNから登録する</p>
+      <p className="isbn-description">裏表紙のISBNバーコードを読み取ると、重複確認と書籍情報の検索を行います。</p>
       {scanning ? (
         <div className="isbn-camera-panel">
           <div className="isbn-camera-preview">
