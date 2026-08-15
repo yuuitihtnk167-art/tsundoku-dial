@@ -16,6 +16,8 @@ test("GitHub Pages用の静的アプリを生成する", async () => {
   assert.match(html, /<title>積読ダイヤル \| 表紙から育てる本棚<\/title>/);
   assert.match(html, /(?:src|href)="\/tsundoku-dial\/assets\//);
   assert.match(app, /mediaDevices\.getUserMedia/);
+  assert.doesNotMatch(app, /一冊を積む/);
+  assert.match(app, /editingBookId && <h2>修正<\/h2>/);
   assert.match(app, /video\.srcObject = stream/);
   assert.match(app, /onCanPlay=\{\(\) => setCameraReady\(true\)\}/);
   assert.doesNotMatch(app, /setTimeout\(\(\) => \{\s*if \(!videoRef\.current\) return/);
@@ -37,7 +39,7 @@ test("GitHub Pages用の静的アプリを生成する", async () => {
   assert.match(app, /}, 300\)/);
   assert.match(app, /distance > 18/);
   assert.match(app, /getBookDragScrollDelta/);
-  assert.match(app, /bookDragMaximumScrollSpeed = 56/);
+  assert.match(app, /bookDragMaximumScrollSpeed = 112/);
   assert.match(app, /requestAnimationFrame\(scrollFrame\)/);
   assert.match(app, /lowerBoundary = classificationTray\?\.getBoundingClientRect\(\)\.top/);
   assert.match(app, /window\.scrollBy\(\{ top: scrollDelta, behavior: "instant" \}\)/);
@@ -98,6 +100,6 @@ test("GitHub Pages用の静的アプリを生成する", async () => {
     parsedManifest.icons.map(({ sizes }) => sizes),
     ["192x192", "512x512"],
   );
-  assert.match(serviceWorker, /tsundoku-dial-v16/);
+  assert.match(serviceWorker, /tsundoku-dial-v17/);
   assert.match(serviceWorker, /caches\.delete/);
 });
