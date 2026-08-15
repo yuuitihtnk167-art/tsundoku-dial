@@ -159,7 +159,7 @@ button { color: inherit; }
 .shutter-button:disabled { opacity: .55; cursor: wait; }
 .camera-prompt:disabled { opacity: .55; cursor: wait; }
 .detecting-message, .crop-message { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.6; }
-.crop-message { min-height: 4.8em; padding-top: .4em; touch-action: pan-y; }
+.crop-scroll-area { min-height: 58px; padding-top: 5px; touch-action: pan-y; }
 .camera-shape { width: 54px; height: 40px; border: 3px solid var(--forest); border-radius: 9px; position: relative; margin-bottom: 8px; }
 .camera-shape::before { content: ""; position: absolute; width: 16px; height: 10px; left: 8px; top: -10px; border: 3px solid var(--forest); border-bottom: 0; border-radius: 4px 4px 0 0; }
 .camera-shape::after { content: ""; position: absolute; width: 17px; height: 17px; border: 3px solid var(--forest); border-radius: 50%; left: 15px; top: 8px; }
@@ -256,6 +256,7 @@ button { color: inherit; }
   .classification-tray-heading small { display: none; }
   .category-drop-grid { grid-template-columns: repeat(2, 1fr); gap: 7px; }
   .category-drop-target, .delete-drop-zone { min-height: 48px; padding: 6px; font-size: 11px; }
+  .crop-stage { width: min(100%, var(--crop-stage-mobile-width)); margin-inline: auto; }
   .add-dialog form { padding: 22px 16px; }
   .detail-card { grid-template-columns: 1fr; gap: 28px; padding: 54px 22px 28px; }
   .detail-card > img { max-height: 48vh; }

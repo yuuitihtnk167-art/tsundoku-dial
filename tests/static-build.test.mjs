@@ -39,11 +39,15 @@ test("GitHub Pages用の静的アプリを生成する", async () => {
   assert.match(app, /getBookDragScrollDelta/);
   assert.match(app, /bookDragMaximumScrollSpeed = 56/);
   assert.match(app, /requestAnimationFrame\(scrollFrame\)/);
-  assert.match(app, /window\.scrollBy\(0, scrollDelta\)/);
+  assert.match(app, /lowerBoundary = classificationTray\?\.getBoundingClientRect\(\)\.top/);
+  assert.match(app, /window\.scrollBy\(\{ top: scrollDelta, behavior: "instant" \}\)/);
   assert.match(app, /closest\("\.classification-tray"\)/);
   assert.doesNotMatch(app, /className=\{photo \? "has-photo" : undefined\}/);
   assert.doesNotMatch(styles, /\.add-dialog form\.has-photo/);
-  assert.match(styles, /\.crop-message \{ min-height: 4\.8em; padding-top: \.4em; touch-action: pan-y; \}/);
+  assert.match(app, /className="crop-scroll-area"/);
+  assert.match(app, /--crop-stage-mobile-width/);
+  assert.match(styles, /\.crop-scroll-area \{ min-height: 58px; padding-top: 5px; touch-action: pan-y; \}/);
+  assert.match(styles, /\.crop-stage \{ width: min\(100%, var\(--crop-stage-mobile-width\)\); margin-inline: auto; \}/);
   assert.match(app, /selectedBookId/);
   assert.match(app, /つかみました。もう一度動かすと並べ替え・分類・削除できます。/);
   assert.match(styles, /\.book-card\.is-selected \{ touch-action: none; \}/);
@@ -94,6 +98,6 @@ test("GitHub Pages用の静的アプリを生成する", async () => {
     parsedManifest.icons.map(({ sizes }) => sizes),
     ["192x192", "512x512"],
   );
-  assert.match(serviceWorker, /tsundoku-dial-v15/);
+  assert.match(serviceWorker, /tsundoku-dial-v16/);
   assert.match(serviceWorker, /caches\.delete/);
 });

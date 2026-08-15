@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  CSSProperties,
   FormEvent,
   KeyboardEvent as ReactKeyboardEvent,
   PointerEvent as ReactPointerEvent,
@@ -151,16 +152,20 @@ function clamp(value: number, minimum: number, maximum: number) {
   return Math.min(maximum, Math.max(minimum, value));
 }
 
-function getBookDragScrollDelta(clientY: number, viewportHeight: number) {
+function getBookDragScrollDelta(
+  clientY: number,
+  viewportHeight: number,
+  lowerBoundary = viewportHeight,
+) {
   const edge = Math.min(bookDragScrollEdge, viewportHeight / 4);
   if (clientY < edge) {
     return -Math.ceil(
       clamp((edge - clientY) / edge, 0, 1) * bookDragMaximumScrollSpeed,
     );
   }
-  if (clientY > viewportHeight - edge) {
+  if (clientY > lowerBoundary - edge && clientY < lowerBoundary) {
     return Math.ceil(
-      clamp((clientY - (viewportHeight - edge)) / edge, 0, 1) *
+      clamp((clientY - (lowerBoundary - edge)) / edge, 0, 1) *
         bookDragMaximumScrollSpeed,
     );
   }
@@ -702,11 +707,17 @@ export function BookLibrary() {
       ) as HTMLElement | null;
       if (element?.closest(".classification-tray")) return;
 
-      const scrollDelta = getBookDragScrollDelta(pointer.currentY, window.innerHeight);
+      const classificationTray = document.querySelector<HTMLElement>(".classification-tray");
+      const lowerBoundary = classificationTray?.getBoundingClientRect().top ?? window.innerHeight;
+      const scrollDelta = getBookDragScrollDelta(
+        pointer.currentY,
+        window.innerHeight,
+        lowerBoundary,
+      );
       if (scrollDelta === 0) return;
 
       const previousScrollY = window.scrollY;
-      window.scrollBy(0, scrollDelta);
+      window.scrollBy({ top: scrollDelta, behavior: "instant" });
       if (window.scrollY === previousScrollY) return;
 
       dragMovedRef.current = true;
@@ -1211,7 +1222,10 @@ export function BookLibrary() {
               <p className="crop-help"><span>2</span> 白い枠を指で動かして切り取り範囲を調整してください</p>
               <div
                 className="crop-stage"
-                style={{ aspectRatio: photoAspectRatio }}
+                style={{
+                  aspectRatio: photoAspectRatio,
+                  "--crop-stage-mobile-width": `${58 * photoAspectRatio}dvh`,
+                } as CSSProperties}
                 onPointerMove={dragCrop}
                 onPointerUp={finishCropDrag}
                 onPointerCancel={finishCropDrag}
@@ -1246,7 +1260,9 @@ export function BookLibrary() {
                   ))}
                 </div>
               </div>
-              {cropMessage && <p className="crop-message" aria-live="polite">{cropMessage}</p>}
+              <div className="crop-scroll-area">
+                {cropMessage && <p className="crop-message" aria-live="polite">{cropMessage}</p>}
+              </div>
               <div className="retake-actions">
                 <button className="retake" type="button" onClick={() => {
                   setPhoto(null);
