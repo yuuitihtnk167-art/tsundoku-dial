@@ -146,7 +146,7 @@ const bookAnalysisPrompt = [
 
 const minimumCropSize = 8;
 const bookDragScrollEdge = 88;
-const bookDragMaximumScrollSpeed = 56;
+const bookDragMaximumScrollSpeed = 112;
 
 function clamp(value: number, minimum: number, maximum: number) {
   return Math.min(maximum, Math.max(minimum, value));
@@ -1175,7 +1175,7 @@ export function BookLibrary() {
           <div className="dialog-heading">
             <div>
               <p className="eyebrow">{editingBookId ? "EDIT COVER" : "NEW BOOK"}</p>
-              <h2>{editingBookId ? "修正" : "一冊を積む"}</h2>
+              {editingBookId && <h2>修正</h2>}
             </div>
             <button className="close-button" type="button" onClick={closeAddDialog} aria-label="閉じる">×</button>
           </div>
