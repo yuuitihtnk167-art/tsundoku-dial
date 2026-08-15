@@ -37,9 +37,12 @@ test("GitHub Pages用の静的アプリを生成する", async () => {
   assert.match(app, /}, 300\)/);
   assert.match(app, /distance > 18/);
   assert.match(app, /getBookDragScrollDelta/);
+  assert.match(app, /bookDragMaximumScrollSpeed = 28/);
   assert.match(app, /requestAnimationFrame\(scrollFrame\)/);
   assert.match(app, /window\.scrollBy\(0, scrollDelta\)/);
   assert.match(app, /closest\("\.classification-tray"\)/);
+  assert.match(app, /className=\{photo \? "has-photo" : undefined\}/);
+  assert.match(styles, /\.add-dialog form\.has-photo \{ padding-bottom:/);
   assert.match(app, /selectedBookId/);
   assert.match(app, /つかみました。もう一度動かすと並べ替え・分類・削除できます。/);
   assert.match(styles, /\.book-card\.is-selected \{ touch-action: none; \}/);
@@ -90,6 +93,6 @@ test("GitHub Pages用の静的アプリを生成する", async () => {
     parsedManifest.icons.map(({ sizes }) => sizes),
     ["192x192", "512x512"],
   );
-  assert.match(serviceWorker, /tsundoku-dial-v13/);
+  assert.match(serviceWorker, /tsundoku-dial-v14/);
   assert.match(serviceWorker, /caches\.delete/);
 });
