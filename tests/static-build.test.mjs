@@ -48,6 +48,10 @@ test("GitHub Pages用の静的アプリを生成する", async () => {
   assert.match(app, /持っている/);
   assert.match(app, /data-category-drop=\{category\.id\}/);
   assert.match(app, /classification-tray/);
+  assert.match(app, /classificationPanelOpen && books\.length > 0/);
+  assert.doesNotMatch(app, /classificationPanelOpen \|\| draggingBookId/);
+  assert.match(app, /分類盤を表示する/);
+  assert.match(app, /分類盤を閉じる/);
   assert.match(styles, /\.dial-knob/);
   assert.match(styles, /\.classification-tray/);
   assert.match(app, /data-book-id=\{book\.id\}/);
@@ -82,6 +86,6 @@ test("GitHub Pages用の静的アプリを生成する", async () => {
     parsedManifest.icons.map(({ sizes }) => sizes),
     ["192x192", "512x512"],
   );
-  assert.match(serviceWorker, /tsundoku-dial-v11/);
+  assert.match(serviceWorker, /tsundoku-dial-v12/);
   assert.match(serviceWorker, /caches\.delete/);
 });

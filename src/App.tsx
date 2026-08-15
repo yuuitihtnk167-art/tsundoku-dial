@@ -975,7 +975,7 @@ export function BookLibrary() {
               }}
               disabled={books.length === 0}
             >
-              {classificationPanelOpen ? "分類先を閉じる" : "本を分類する"}
+              {classificationPanelOpen ? "分類盤を閉じる" : "分類盤を表示する"}
             </button>
           </div>
         </div>
@@ -1031,7 +1031,7 @@ export function BookLibrary() {
         )}
       </section>
 
-      {(classificationPanelOpen || draggingBookId) && books.length > 0 && (
+      {classificationPanelOpen && books.length > 0 && (
         <aside
           className={draggingBookId ? "classification-tray is-dragging" : "classification-tray"}
           aria-label="本の分類先"
@@ -1043,7 +1043,7 @@ export function BookLibrary() {
             </div>
             <button
               type="button"
-              aria-label="分類先を閉じる"
+              aria-label="分類盤を閉じる"
               onClick={() => setClassificationPanelOpen(false)}
               disabled={Boolean(draggingBookId)}
             >
