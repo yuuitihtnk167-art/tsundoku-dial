@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  ChangeEvent,
   CSSProperties,
   FormEvent,
   KeyboardEvent as ReactKeyboardEvent,
@@ -22,6 +23,7 @@ import {
   addBook,
   deleteBook,
   getBooks,
+  replaceBooks,
   saveBookOrder,
   updateBook,
   updateBookCategory,
@@ -31,6 +33,7 @@ import {
 import { lookupBookByIsbn } from "./book-lookup";
 import { getTitleMatch } from "./book-match";
 import { IsbnScanner } from "./IsbnScanner";
+import { createCompleteBackup, parseCompleteBackup, type ParsedBackup } from "./backup";
 
 type Book = StoredBook & {
   coverUrl: string;
@@ -227,8 +230,14 @@ export function BookLibrary() {
   const [lookingUpBook, setLookingUpBook] = useState(false);
   const [bookLookupMessage, setBookLookupMessage] = useState("");
   const [saving, setSaving] = useState(false);
+  const [backupBusy, setBackupBusy] = useState(false);
+  const [restoreBusy, setRestoreBusy] = useState(false);
+  const [settingsMessage, setSettingsMessage] = useState("");
+  const [settingsError, setSettingsError] = useState(false);
+  const [pendingRestore, setPendingRestore] = useState<ParsedBackup | null>(null);
   const addDialogRef = useRef<HTMLDialogElement>(null);
   const detailDialogRef = useRef<HTMLDialogElement>(null);
+  const settingsDialogRef = useRef<HTMLDialogElement>(null);
   const bookLookupAbortRef = useRef<AbortController | null>(null);
   const duplicateWarningRef = useRef<HTMLElement>(null);
   const titleRef = useRef("");
@@ -1105,6 +1114,102 @@ export function BookLibrary() {
     }
   }
 
+  function openSettingsDialog() {
+    setPendingRestore(null);
+    setSettingsMessage("");
+    setSettingsError(false);
+    settingsDialogRef.current?.showModal();
+  }
+
+  function closeSettingsDialog() {
+    if (backupBusy || restoreBusy) return;
+    setPendingRestore(null);
+    setSettingsMessage("");
+    setSettingsError(false);
+    settingsDialogRef.current?.close();
+  }
+
+  async function downloadCompleteBackup() {
+    setBackupBusy(true);
+    setSettingsMessage("画像を含む完全バックアップを作成しています…");
+    setSettingsError(false);
+    try {
+      const storedBooks = await getBooks();
+      const createdAt = new Date().toISOString();
+      const backup = await createCompleteBackup(storedBooks, createdAt);
+      const date = createdAt.slice(0, 10).replaceAll("-", "");
+      const url = URL.createObjectURL(backup);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `tsundoku-dial-backup-${date}.json`;
+      document.body.append(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      setSettingsMessage(`${storedBooks.length}冊とすべての画像をバックアップしました。ダウンロード先を確認してください。`);
+    } catch (backupError) {
+      setSettingsError(true);
+      setSettingsMessage(backupError instanceof Error ? backupError.message : "バックアップを作成できませんでした。");
+    } finally {
+      setBackupBusy(false);
+    }
+  }
+
+  async function selectRestoreFile(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    setRestoreBusy(true);
+    setPendingRestore(null);
+    setSettingsMessage("バックアップの内容と画像を確認しています…");
+    setSettingsError(false);
+    try {
+      const parsed = await parseCompleteBackup(file);
+      setPendingRestore(parsed);
+      setSettingsMessage("検証が完了しました。内容を確認して復元してください。");
+    } catch (restoreError) {
+      setSettingsError(true);
+      setSettingsMessage(restoreError instanceof Error ? restoreError.message : "バックアップを読み取れませんでした。");
+    } finally {
+      setRestoreBusy(false);
+    }
+  }
+
+  async function restoreCompleteBackup() {
+    if (!pendingRestore) return;
+    const confirmed = window.confirm(
+      `現在の本棚${books.length}冊を、バックアップの${pendingRestore.books.length}冊で置き換えます。よろしいですか？`,
+    );
+    if (!confirmed) return;
+
+    setRestoreBusy(true);
+    setSettingsMessage("本棚を復元しています…");
+    setSettingsError(false);
+    try {
+      await replaceBooks(pendingRestore.books);
+      coverUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+      coverUrlsRef.current = [];
+      const nextBooks = pendingRestore.books.map((book) => {
+        const coverUrl = URL.createObjectURL(book.cover);
+        coverUrlsRef.current.push(coverUrl);
+        return { ...book, coverUrl };
+      });
+      booksRef.current = nextBooks;
+      setBooks(nextBooks);
+      setSelectedBook(null);
+      setSelectedBookId(null);
+      setClassificationPanelOpen(false);
+      setError("");
+      setPendingRestore(null);
+      setSettingsMessage(`${nextBooks.length}冊を復元しました。`);
+    } catch (restoreError) {
+      setSettingsError(true);
+      setSettingsMessage(restoreError instanceof Error ? restoreError.message : "本棚を復元できませんでした。");
+    } finally {
+      setRestoreBusy(false);
+    }
+  }
+
   return (
     <main>
       <header className="topbar" id="top">
@@ -1135,6 +1240,14 @@ export function BookLibrary() {
               {category.label}
             </button>
           ))}
+          <button
+            className="dial-settings"
+            type="button"
+            aria-haspopup="dialog"
+            onClick={openSettingsDialog}
+          >
+            <span aria-hidden="true">⚙</span> 設定
+          </button>
           <div
             className={dialTurning ? "dial-control is-turning" : "dial-control"}
             role="slider"
@@ -1307,6 +1420,84 @@ export function BookLibrary() {
           </div>
         );
       })()}
+
+      <dialog
+        className="settings-dialog"
+        ref={settingsDialogRef}
+        onCancel={(event) => {
+          if (backupBusy || restoreBusy) event.preventDefault();
+        }}
+        onClose={() => {
+          setPendingRestore(null);
+          setSettingsMessage("");
+          setSettingsError(false);
+        }}
+      >
+        <section className="settings-card" aria-labelledby="settings-title">
+          <div className="dialog-heading">
+            <div>
+              <p className="eyebrow">SETTINGS</p>
+              <h2 id="settings-title">設定</h2>
+            </div>
+            <button
+              className="close-button"
+              type="button"
+              onClick={closeSettingsDialog}
+              aria-label="設定を閉じる"
+              disabled={backupBusy || restoreBusy}
+            >
+              ×
+            </button>
+          </div>
+
+          <section className="settings-section" aria-labelledby="backup-title">
+            <h3 id="backup-title">完全バックアップ</h3>
+            <p>タイトル、メモ、ISBN、分類、並び順、表紙画像、元画像、切り取り範囲を1つのファイルに保存します。</p>
+            <button
+              className="backup-button"
+              type="button"
+              onClick={() => void downloadCompleteBackup()}
+              disabled={backupBusy || restoreBusy}
+            >
+              {backupBusy ? "バックアップを作成中…" : `完全バックアップを作成（${books.length}冊）`}
+            </button>
+          </section>
+
+          <section className="settings-section restore-section" aria-labelledby="restore-title">
+            <h3 id="restore-title">バックアップから復元</h3>
+            <p>ファイルを検証してから、現在の本棚をバックアップの内容で置き換えます。</p>
+            <label className={backupBusy || restoreBusy ? "restore-file-button is-disabled" : "restore-file-button"}>
+              {restoreBusy ? "ファイルを確認中…" : "バックアップファイルを選ぶ"}
+              <input
+                className="restore-file-input"
+                type="file"
+                accept=".json,application/json"
+                onChange={(event) => void selectRestoreFile(event)}
+                disabled={backupBusy || restoreBusy}
+              />
+            </label>
+            {pendingRestore && (
+              <div className="restore-preview" role="status">
+                <dl>
+                  <div><dt>作成日時</dt><dd>{new Intl.DateTimeFormat("ja-JP", { dateStyle: "long", timeStyle: "short" }).format(new Date(pendingRestore.createdAt))}</dd></div>
+                  <div><dt>復元する本</dt><dd>{pendingRestore.books.length}冊</dd></div>
+                  <div><dt>現在の本棚</dt><dd>{books.length}冊</dd></div>
+                </dl>
+                <button className="restore-button" type="button" onClick={() => void restoreCompleteBackup()} disabled={restoreBusy}>
+                  現在の本棚を置き換えて復元
+                </button>
+              </div>
+            )}
+          </section>
+
+          {settingsMessage && (
+            <p className={settingsError ? "settings-message is-error" : "settings-message"} role={settingsError ? "alert" : "status"}>
+              {settingsMessage}
+            </p>
+          )}
+        </section>
+      </dialog>
+
       <dialog
         className="add-dialog"
         ref={addDialogRef}

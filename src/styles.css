@@ -82,7 +82,10 @@ button { color: inherit; }
 .dial-category-read { right: 28px; bottom: 33px; width: 120px; }
 .dial-category-owned { left: 28px; bottom: 33px; width: 120px; }
 .dial-category-reading { left: 0; top: 91px; width: 142px; }
-.category-counter { display: flex; align-items: center; justify-content: center; gap: 14px; width: fit-content; margin: -1px auto 0; padding: 8px 16px; border: 2px solid #88652f; border-radius: 7px; background: #d8bd7c; font-family: Georgia, "Yu Mincho", serif; box-shadow: inset 0 0 0 2px rgba(255,245,207,.34); }
+.dial-settings { position: absolute; z-index: 3; right: 28px; bottom: -26px; width: 120px; min-height: 40px; border: 2px solid #71542d; border-radius: 9px; background: linear-gradient(#eee6d0, #c9b78e); color: #2f382f; font-weight: 800; cursor: pointer; box-shadow: inset 0 0 0 2px rgba(255,255,255,.45), 0 4px 7px rgba(73,49,31,.22); }
+.dial-settings:hover, .dial-settings:focus-visible { transform: translateY(-2px); }
+.dial-settings span { margin-right: 3px; }
+.category-counter { display: flex; align-items: center; justify-content: center; gap: 14px; width: fit-content; margin: 45px auto 0; padding: 8px 16px; border: 2px solid #88652f; border-radius: 7px; background: #d8bd7c; font-family: Georgia, "Yu Mincho", serif; box-shadow: inset 0 0 0 2px rgba(255,245,207,.34); }
 .category-counter span { width: 6px; height: 6px; border-radius: 50%; background: #62431f; }
 .category-counter strong { margin-left: 5px; font-size: 18px; }
 .dial-help { margin: 10px 0 0; color: #6b624e; font-size: 11px; text-align: center; }
@@ -137,6 +140,28 @@ button { color: inherit; }
 .empty-books i:nth-child(3) { height: 64px; transform: rotate(8deg); }
 .loading { color: var(--muted); text-align: center; padding: 80px 0; }
 .error-message { border-radius: 10px; background: #fff0ec; color: #9a3828; padding: 12px 14px; font-size: 13px; }
+.settings-dialog { width: min(620px, calc(100% - 24px)); max-height: calc(100dvh - 24px); border: 0; border-radius: 24px; padding: 0; background: #fffdf8; color: var(--ink); box-shadow: 0 32px 90px rgba(10,24,17,.32); }
+.settings-dialog::backdrop { background: rgba(14,25,19,.7); backdrop-filter: blur(5px); }
+.settings-card { padding: 28px; }
+.settings-section { padding: 20px; border: 1px solid var(--line); border-radius: 14px; background: #faf6ea; }
+.settings-section + .settings-section { margin-top: 16px; }
+.settings-section h3 { margin: 0 0 8px; font-family: Georgia, "Yu Mincho", serif; font-size: 20px; }
+.settings-section > p { margin: 0 0 16px; color: var(--muted); font-size: 13px; line-height: 1.7; }
+.backup-button, .restore-file-button, .restore-button { display: flex; align-items: center; justify-content: center; width: 100%; min-height: 48px; border-radius: 9px; font-weight: 800; cursor: pointer; }
+.backup-button { border: 2px solid #476e56; background: linear-gradient(#edf8e7, #c8dfbb); color: var(--forest); }
+.restore-file-button { position: relative; border: 2px solid #80602f; background: linear-gradient(#fff7df, #ddcda4); color: var(--forest); }
+.restore-file-button.is-disabled { opacity: .55; cursor: default; }
+.restore-file-input { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
+.restore-preview { margin-top: 16px; padding: 16px; border-radius: 10px; background: #fffdf8; }
+.restore-preview dl { margin: 0 0 15px; }
+.restore-preview dl div { display: flex; justify-content: space-between; gap: 18px; padding: 7px 0; border-bottom: 1px solid #e5ddcb; }
+.restore-preview dt { color: var(--muted); }
+.restore-preview dd { margin: 0; font-weight: 700; text-align: right; }
+.restore-button { border: 2px solid #9a3828; background: #fff0ec; color: #8a2f22; }
+.backup-button:disabled, .restore-button:disabled { opacity: .55; cursor: default; }
+.settings-message { margin: 16px 0 0; padding: 12px 14px; border-radius: 10px; background: #edf8e7; color: var(--forest); font-size: 13px; line-height: 1.6; }
+.settings-message.is-error { background: #fff0ec; color: #9a3828; }
+
 
 .add-dialog { width: min(680px, calc(100% - 24px)); max-height: calc(100dvh - 24px); border: 0; border-radius: 24px; padding: 0; background: #fffdf8; color: var(--ink); box-shadow: 0 32px 90px rgba(10,24,17,.32); }
 .add-dialog::backdrop { background: rgba(14, 25, 19, .7); backdrop-filter: blur(5px); }
@@ -274,9 +299,11 @@ button { color: inherit; }
   .dial-category-reread { right: 0; top: 105px; width: 133px; }
   .dial-category-owned { left: 0; bottom: 39px; width: 112px; }
   .dial-category-read { right: 0; bottom: 39px; width: 106px; }
-  .category-counter { margin-top: -9px; padding: 7px 12px; font-size: 13px; }
+  .dial-settings { right: 0; bottom: -18px; width: 106px; min-height: 40px; font-size: 12px; }
+  .category-counter { margin-top: 40px; padding: 7px 12px; font-size: 13px; }
   .category-counter strong { font-size: 16px; }
   .shelf { border-radius: 22px 22px 0 0; padding: 42px 16px 120px; }
+  .settings-card { padding: 22px 16px; }
   .section-heading { align-items: start; flex-direction: column; gap: 17px; }
   .section-heading h2 { font-size: 28px; }
   .shelf-actions { width: 100%; justify-items: stretch; }

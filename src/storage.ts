@@ -43,6 +43,14 @@ function requestResult<T>(request: IDBRequest<T>) {
   });
 }
 
+function transactionComplete(transaction: IDBTransaction) {
+  return new Promise<void>((resolve, reject) => {
+    transaction.oncomplete = () => resolve();
+    transaction.onabort = () => reject(transaction.error ?? new Error("本棚を復元できませんでした。"));
+    transaction.onerror = () => reject(transaction.error ?? new Error("本棚を復元できませんでした。"));
+  });
+}
+
 export async function getBooks() {
   const database = await openDatabase();
   try {
@@ -162,6 +170,20 @@ export async function deleteBook(id: string) {
   try {
     const transaction = database.transaction(BOOK_STORE, "readwrite");
     await requestResult(transaction.objectStore(BOOK_STORE).delete(id));
+  } finally {
+    database.close();
+  }
+}
+
+export async function replaceBooks(books: StoredBook[]) {
+  const database = await openDatabase();
+  try {
+    const transaction = database.transaction(BOOK_STORE, "readwrite");
+    const completion = transactionComplete(transaction);
+    const store = transaction.objectStore(BOOK_STORE);
+    store.clear();
+    books.forEach((book) => store.put(book));
+    await completion;
   } finally {
     database.close();
   }
