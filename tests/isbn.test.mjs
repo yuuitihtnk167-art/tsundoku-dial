@@ -55,5 +55,5 @@ test("ISBN読取・保存・重複確認がアプリに組み込まれている"
   assert.match(storage, /isbn: input\.isbn/);
   assert.match(styles, /\.isbn-panel/);
   assert.match(styles, /\.duplicate-warning/);
-  assert.match(serviceWorker, /tsundoku-dial-v20/);
+  assert.match(serviceWorker, /tsundoku-dial-v21/);
 });

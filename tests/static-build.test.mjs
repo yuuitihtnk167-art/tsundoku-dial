@@ -3,10 +3,11 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 test("GitHub Pages用の静的アプリを生成する", async () => {
-  const [html, app, storage, image, styles, manifest, serviceWorker] = await Promise.all([
+  const [html, app, storage, backup, image, styles, manifest, serviceWorker] = await Promise.all([
     readFile(new URL("../dist/index.html", import.meta.url), "utf8"),
     readFile(new URL("../src/App.tsx", import.meta.url), "utf8"),
     readFile(new URL("../src/storage.ts", import.meta.url), "utf8"),
+    readFile(new URL("../src/backup.ts", import.meta.url), "utf8"),
     readFile(new URL("../src/image.ts", import.meta.url), "utf8"),
     readFile(new URL("../src/styles.css", import.meta.url), "utf8"),
     readFile(new URL("../dist/manifest.webmanifest", import.meta.url), "utf8"),
@@ -76,7 +77,18 @@ test("GitHub Pages用の静的アプリを生成する", async () => {
   assert.match(app, /delete-drop-zone/);
   assert.match(app, /saveBookOrder/);
   assert.match(app, /deleteBook/);
-  assert.doesNotMatch(app, /type="file"|標準カメラ|fileInputRef|choosePhoto/);
+  assert.doesNotMatch(app, /accept="image\/\*"|標準カメラ|fileInputRef|choosePhoto/);
+  assert.match(app, /className="dial-settings"/);
+  assert.match(app, /完全バックアップを作成/);
+  assert.match(app, /accept="\.json,application\/json"/);
+  assert.match(app, /createCompleteBackup/);
+  assert.match(app, /parseCompleteBackup/);
+  assert.match(app, /replaceBooks/);
+  assert.match(backup, /tsundoku-dial-backup/);
+  assert.match(backup, /SHA-256/);
+  assert.match(backup, /同じ書籍IDが重複しています/);
+  assert.match(storage, /transaction\.oncomplete/);
+  assert.match(storage, /store\.clear\(\)/);
   assert.doesNotMatch(app, /type="range"|crop-controls|updateCrop/);
   assert.doesNotMatch(app, /fetch\(|\/api\//);
   assert.match(app, /maximum-scale=5\.0, user-scalable=yes/);
@@ -104,6 +116,6 @@ test("GitHub Pages用の静的アプリを生成する", async () => {
     parsedManifest.icons.map(({ sizes }) => sizes),
     ["192x192", "512x512"],
   );
-  assert.match(serviceWorker, /tsundoku-dial-v20/);
+  assert.match(serviceWorker, /tsundoku-dial-v21/);
   assert.match(serviceWorker, /caches\.delete/);
 });
