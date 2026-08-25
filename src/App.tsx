@@ -87,6 +87,8 @@ type BookCategoryOption = {
   angle: number;
 };
 
+type BookViewMode = "dial" | "shelf";
+
 const bookCategories: BookCategoryOption[] = [
   { id: "unclassified", label: "積読", dropLabel: "積読に戻す", angle: 0 },
   { id: "reread", label: "もう一度読みたい", dropLabel: "もう一度読みたい", angle: 72 },
@@ -94,6 +96,25 @@ const bookCategories: BookCategoryOption[] = [
   { id: "owned", label: "持っている", dropLabel: "持っている", angle: 216 },
   { id: "reading", label: "今読んでいる", dropLabel: "今読んでいる", angle: 288 },
 ];
+
+const shelfCategoryOrder: BookCategory[] = [
+  "unclassified",
+  "reading",
+  "reread",
+  "owned",
+  "read",
+];
+const bookViewModeStorageKey = "tsundoku-dial-book-view-mode";
+
+function getInitialBookViewMode(): BookViewMode {
+  try {
+    return window.localStorage.getItem(bookViewModeStorageKey) === "shelf"
+      ? "shelf"
+      : "dial";
+  } catch {
+    return "dial";
+  }
+}
 
 function getBookCategory(book: StoredBook): BookCategory {
   return book.category ?? "unclassified";
@@ -184,6 +205,28 @@ function getBookDragScrollDelta(
   return 0;
 }
 
+function getBookDragHorizontalScrollDelta(
+  clientX: number,
+  leftBoundary: number,
+  rightBoundary: number,
+) {
+  const width = rightBoundary - leftBoundary;
+  const edge = Math.min(bookDragScrollEdge, width / 4);
+  if (clientX < leftBoundary + edge && clientX > leftBoundary) {
+    return -Math.ceil(
+      clamp((leftBoundary + edge - clientX) / edge, 0, 1) *
+        bookDragMaximumScrollSpeed,
+    );
+  }
+  if (clientX > rightBoundary - edge && clientX < rightBoundary) {
+    return Math.ceil(
+      clamp((clientX - (rightBoundary - edge)) / edge, 0, 1) *
+        bookDragMaximumScrollSpeed,
+    );
+  }
+  return 0;
+}
+
 const lockedViewport = "width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no";
 const detailViewport = "width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes";
 
@@ -214,6 +257,7 @@ export function BookLibrary() {
   const [sharing, setSharing] = useState(false);
   const [promptCopied, setPromptCopied] = useState(false);
   const [activeCategory, setActiveCategory] = useState<BookCategory>("unclassified");
+  const [bookViewMode, setBookViewMode] = useState<BookViewMode>(getInitialBookViewMode);
   const [dialRotation, setDialRotation] = useState(0);
   const [dialTurning, setDialTurning] = useState(false);
   const [classificationPanelOpen, setClassificationPanelOpen] = useState(false);
@@ -256,6 +300,7 @@ export function BookLibrary() {
   const deleteDropActiveRef = useRef(false);
   const categoryDropActiveRef = useRef<BookCategory | null>(null);
   const lastReorderTargetRef = useRef<string | null>(null);
+  const categoryDropBookIdRef = useRef<string | null>(null);
   const suppressBookClickRef = useRef(false);
   const coverUrlsRef = useRef<string[]>([]);
   const cropKey = [crop.left, crop.top, crop.right, crop.bottom].join(":");
@@ -394,6 +439,13 @@ export function BookLibrary() {
     if (bookAutoScrollFrameRef.current !== null) {
       window.cancelAnimationFrame(bookAutoScrollFrameRef.current);
     }
+  }, []);
+  useEffect(() => {
+    const preventScrollWhileDragging = (event: TouchEvent) => {
+      if (draggingBookIdRef.current) event.preventDefault();
+    };
+    document.addEventListener("touchmove", preventScrollWhileDragging, { passive: false });
+    return () => document.removeEventListener("touchmove", preventScrollWhileDragging);
   }, []);
   useEffect(() => {
     if (!selectedBookId) return;
@@ -799,20 +851,39 @@ export function BookLibrary() {
     setDeleteTarget(overDelete);
     if (overDelete) {
       setCategoryTarget(null);
+      categoryDropBookIdRef.current = null;
       return;
     }
 
-    const categoryValue = element
+    const trayCategoryValue = element
       ?.closest<HTMLElement>("[data-category-drop]")
       ?.dataset.categoryDrop as BookCategory | undefined;
-    const overCategory = bookCategories.some((category) => category.id === categoryValue)
+    const rowCategoryValue = element
+      ?.closest<HTMLElement>("[data-category-row]")
+      ?.dataset.categoryRow as BookCategory | undefined;
+    const categoryValue = trayCategoryValue ?? rowCategoryValue;
+    const draggedBook = booksRef.current.find((book) => book.id === draggedId);
+    const draggedCategory = draggedBook ? getBookCategory(draggedBook) : null;
+    const overCategory = bookCategories.some((category) => category.id === categoryValue) &&
+      categoryValue !== draggedCategory
       ? categoryValue ?? null
       : null;
     setCategoryTarget(overCategory);
-    if (overCategory) return;
+    if (overCategory) {
+      categoryDropBookIdRef.current = element
+        ?.closest<HTMLElement>("[data-book-id]")
+        ?.dataset.bookId ?? null;
+      return;
+    }
+    categoryDropBookIdRef.current = null;
 
     const targetId = element?.closest<HTMLElement>("[data-book-id]")?.dataset.bookId;
     if (!targetId || targetId === draggedId) {
+      lastReorderTargetRef.current = null;
+      return;
+    }
+    const targetBook = booksRef.current.find((book) => book.id === targetId);
+    if (!targetBook || getBookCategory(targetBook) !== draggedCategory) {
       lastReorderTargetRef.current = null;
       return;
     }
@@ -852,6 +923,22 @@ export function BookLibrary() {
       ) as HTMLElement | null;
       if (element?.closest(".classification-tray")) return;
 
+      const shelfRow = element?.closest<HTMLElement>(".bookshelf-row-scroll");
+      let rowScrolled = false;
+      if (shelfRow) {
+        const rowBounds = shelfRow.getBoundingClientRect();
+        const horizontalDelta = getBookDragHorizontalScrollDelta(
+          pointer.currentX,
+          rowBounds.left,
+          rowBounds.right,
+        );
+        if (horizontalDelta !== 0) {
+          const previousScrollLeft = shelfRow.scrollLeft;
+          shelfRow.scrollBy({ left: horizontalDelta, behavior: "instant" });
+          rowScrolled = shelfRow.scrollLeft !== previousScrollLeft;
+        }
+      }
+
       const classificationTray = document.querySelector<HTMLElement>(".classification-tray");
       const lowerBoundary = classificationTray?.getBoundingClientRect().top ?? window.innerHeight;
       const scrollDelta = getBookDragScrollDelta(
@@ -859,11 +946,12 @@ export function BookLibrary() {
         window.innerHeight,
         lowerBoundary,
       );
-      if (scrollDelta === 0) return;
-
       const previousScrollY = window.scrollY;
-      window.scrollBy({ top: scrollDelta, behavior: "instant" });
-      if (window.scrollY === previousScrollY) return;
+      if (scrollDelta !== 0) {
+        window.scrollBy({ top: scrollDelta, behavior: "instant" });
+      }
+      const pageScrolled = window.scrollY !== previousScrollY;
+      if (!rowScrolled && !pageScrolled) return;
 
       dragMovedRef.current = true;
       updateBookDragTargets(pointer.currentX, pointer.currentY, draggedId);
@@ -954,22 +1042,47 @@ export function BookLibrary() {
     }
   }
 
-  async function classifyDraggedBook(bookId: string, category: BookCategory) {
+  async function classifyDraggedBook(
+    bookId: string,
+    category: BookCategory,
+    targetBookId: string | null,
+  ) {
     const book = booksRef.current.find((item) => item.id === bookId);
     if (!book) return;
     try {
       await updateBookCategory(bookId, category);
-      const next = booksRef.current.map((item) =>
-        item.id === bookId ? { ...item, category } : item
-      );
-      booksRef.current = next;
-      setBooks(next);
+    } catch (categoryError) {
+      setError(categoryError instanceof Error ? categoryError.message : "本を分類できませんでした。");
+      return;
+    }
+
+    const categorizedBook = { ...book, category };
+    const next = booksRef.current.filter((item) => item.id !== bookId);
+    const targetIndex = targetBookId
+      ? next.findIndex((item) => item.id === targetBookId)
+      : -1;
+    if (targetIndex >= 0) {
+      next.splice(targetIndex, 0, categorizedBook);
+    } else {
+      let lastCategoryIndex = -1;
+      next.forEach((item, index) => {
+        if (getBookCategory(item) === category) lastCategoryIndex = index;
+      });
+      next.splice(lastCategoryIndex + 1, 0, categorizedBook);
+    }
+    booksRef.current = next;
+    setBooks(next);
+
+    try {
+      await saveBookOrder(next.map((item) => item.id));
       const label =
         bookCategories.find((item) => item.id === category)?.dropLabel ?? "積読に戻す";
       setClassificationMessage(`「${book.title}」を「${label}」に分類しました。`);
       setError("");
-    } catch (categoryError) {
-      setError(categoryError instanceof Error ? categoryError.message : "本を分類できませんでした。");
+    } catch (orderError) {
+      setError(orderError instanceof Error
+        ? `分類は変更しましたが、並び順を保存できませんでした。${orderError.message}`
+        : "分類は変更しましたが、並び順を保存できませんでした。");
     }
   }
 
@@ -996,11 +1109,13 @@ export function BookLibrary() {
     if (!draggedId) return;
     const shouldDelete = allowDelete && deleteDropActiveRef.current;
     const targetCategory = allowDelete ? categoryDropActiveRef.current : null;
+    const targetBookId = categoryDropBookIdRef.current;
     const shouldFinishDrag = allowDelete && dragMovedRef.current;
     draggingBookIdRef.current = null;
     dragOriginRef.current = null;
     dragMovedRef.current = false;
     lastReorderTargetRef.current = null;
+    categoryDropBookIdRef.current = null;
     setDeleteTarget(false);
     setCategoryTarget(null);
     setDraggingBookId(null);
@@ -1014,7 +1129,7 @@ export function BookLibrary() {
       void removeDraggedBook(draggedId);
     } else if (targetCategory) {
       clearBookSelection();
-      void classifyDraggedBook(draggedId, targetCategory);
+      void classifyDraggedBook(draggedId, targetCategory, targetBookId);
     } else if (shouldFinishDrag) {
       clearBookSelection();
       void persistCurrentBookOrder();
@@ -1025,6 +1140,34 @@ export function BookLibrary() {
     if (suppressBookClickRef.current) return;
     clearBookSelection();
     setSelectedBook(book);
+  }
+
+  function renderBookCard(book: Book, index: number) {
+    return (
+      <button
+        className={[
+          "book-card",
+          book.id === selectedBookId ? "is-selected" : "",
+          book.id === draggingBookId ? "is-dragging" : "",
+        ].filter(Boolean).join(" ")}
+        type="button"
+        key={book.id}
+        data-book-id={book.id}
+        aria-pressed={book.id === selectedBookId}
+        onClick={() => openBook(book)}
+        onContextMenu={(event) => event.preventDefault()}
+        onPointerDown={(event) => startBookPress(event, book.id)}
+        onPointerMove={moveBook}
+        onPointerUp={(event) => finishBookPress(event, true)}
+        onPointerCancel={(event) => finishBookPress(event, false)}
+      >
+        <span className="cover-wrap">
+          <img src={book.coverUrl} alt={`${book.title}の表紙`} loading={index > 5 ? "lazy" : "eager"} />
+        </span>
+        <strong>{book.title}</strong>
+        <small>{formatDate(book.createdAt)}</small>
+      </button>
+    );
   }
 
   async function copyAnalysisPrompt() {
@@ -1119,6 +1262,18 @@ export function BookLibrary() {
     setSettingsMessage("");
     setSettingsError(false);
     settingsDialogRef.current?.showModal();
+  }
+
+  function selectBookViewMode(mode: BookViewMode) {
+    setBookViewMode(mode);
+    setClassificationPanelOpen(false);
+    clearBookSelection();
+    try {
+      window.localStorage.setItem(bookViewModeStorageKey, mode);
+    } catch {
+      setSettingsError(true);
+      setSettingsMessage("表示方法をこの端末に保存できませんでした。");
+    }
   }
 
   function closeSettingsDialog() {
@@ -1217,12 +1372,23 @@ export function BookLibrary() {
           <span className="brand-mark" aria-hidden="true">本</span>
           <span>積読ダイヤル</span>
         </a>
-        <button className="add-button" type="button" onClick={openAddDialog}>
-          <span aria-hidden="true">＋</span> 表紙を撮る
-        </button>
+        <div className="topbar-actions">
+          <button
+            className="settings-button"
+            type="button"
+            aria-haspopup="dialog"
+            onClick={openSettingsDialog}
+          >
+            <span aria-hidden="true">⚙</span> 設定
+          </button>
+          <button className="add-button" type="button" onClick={openAddDialog}>
+            <span aria-hidden="true">＋</span> 本を登録する
+          </button>
+        </div>
       </header>
 
-      <section className="category-console" aria-labelledby="category-dial-title">
+      {bookViewMode === "dial" && (
+        <section className="category-console" aria-labelledby="category-dial-title">
         <div className="console-nameplate">
           <span aria-hidden="true" />
           <h1 id="category-dial-title">積読ダイヤル</h1>
@@ -1240,14 +1406,6 @@ export function BookLibrary() {
               {category.label}
             </button>
           ))}
-          <button
-            className="dial-settings"
-            type="button"
-            aria-haspopup="dialog"
-            onClick={openSettingsDialog}
-          >
-            <span aria-hidden="true">⚙</span> 設定
-          </button>
           <div
             className={dialTurning ? "dial-control is-turning" : "dial-control"}
             role="slider"
@@ -1283,7 +1441,8 @@ export function BookLibrary() {
           <span aria-hidden="true" />
         </p>
         <p className="dial-help">ダイヤルを回すか、分類名をタップしてください</p>
-      </section>
+        </section>
+      )}
 
       <section className="shelf" aria-labelledby="shelf-title">
         <div className="section-heading">
@@ -1303,7 +1462,9 @@ export function BookLibrary() {
               }}
               disabled={books.length === 0}
             >
-              {classificationPanelOpen ? "分類盤を閉じる" : "分類盤を表示する"}
+              {bookViewMode === "shelf"
+                ? classificationPanelOpen ? "削除盤を閉じる" : "削除盤を表示する"
+                : classificationPanelOpen ? "分類盤を閉じる" : "分類盤を表示する"}
             </button>
           </div>
         </div>
@@ -1318,39 +1479,46 @@ export function BookLibrary() {
             <p>本の表紙を撮ると、ここにあなたの積読が並びます。</p>
             <button type="button" onClick={openAddDialog}>表紙を撮影する</button>
           </div>
+        ) : bookViewMode === "shelf" ? (
+          <div className="bookshelf-categories">
+            {shelfCategoryOrder.map((category) => {
+              const categoryOption = bookCategories.find((item) => item.id === category);
+              const categoryBooks = books.filter(
+                (book) => getBookCategory(book) === category,
+              );
+              return (
+                <section
+                  className={categoryDropActive === category ? "bookshelf-category is-drop-active" : "bookshelf-category"}
+                  key={category}
+                  data-category-row={category}
+                  aria-labelledby={`bookshelf-category-${category}`}
+                >
+                  <div className="bookshelf-category-heading">
+                    <h3 id={`bookshelf-category-${category}`}>
+                      {categoryOption?.label ?? category}
+                    </h3>
+                    <span>{categoryBooks.length}冊</span>
+                  </div>
+                  <div className="bookshelf-row-scroll">
+                    {categoryBooks.length > 0 ? (
+                      <div className="bookshelf-row">
+                        {categoryBooks.map(renderBookCard)}
+                      </div>
+                    ) : (
+                      <p className="bookshelf-row-empty">この分類には、まだ本がありません</p>
+                    )}
+                  </div>
+                </section>
+              );
+            })}
+          </div>
         ) : visibleBooks.length === 0 ? (
           <div className="category-empty">
             <h3>この分類には、まだ本がありません</h3>
             <p>ほかの分類をダイヤルで表示し、表紙を長押しして分類してください。</p>
           </div>
         ) : (
-          <div className="book-grid">
-            {visibleBooks.map((book, index) => (
-              <button
-                className={[
-                  "book-card",
-                  book.id === selectedBookId ? "is-selected" : "",
-                  book.id === draggingBookId ? "is-dragging" : "",
-                ].filter(Boolean).join(" ")}
-                type="button"
-                key={book.id}
-                data-book-id={book.id}
-                aria-pressed={book.id === selectedBookId}
-                onClick={() => openBook(book)}
-                onContextMenu={(event) => event.preventDefault()}
-                onPointerDown={(event) => startBookPress(event, book.id)}
-                onPointerMove={moveBook}
-                onPointerUp={(event) => finishBookPress(event, true)}
-                onPointerCancel={(event) => finishBookPress(event, false)}
-              >
-                <span className="cover-wrap">
-                  <img src={book.coverUrl} alt={`${book.title}の表紙`} loading={index > 5 ? "lazy" : "eager"} />
-                </span>
-                <strong>{book.title}</strong>
-                <small>{formatDate(book.createdAt)}</small>
-              </button>
-            ))}
-          </div>
+          <div className="book-grid">{visibleBooks.map(renderBookCard)}</div>
         )}
         {selectedBookId && !draggingBookId && !classificationPanelOpen && (
           <p className="book-selection-hint" role="status">
@@ -1361,13 +1529,19 @@ export function BookLibrary() {
 
       {classificationPanelOpen && books.length > 0 && (
         <aside
-          className={draggingBookId ? "classification-tray is-dragging" : "classification-tray"}
+          className={[
+            "classification-tray",
+            draggingBookId ? "is-dragging" : "",
+            bookViewMode === "shelf" ? "is-delete-only" : "",
+          ].filter(Boolean).join(" ")}
           aria-label="本の分類先"
         >
           <div className="classification-tray-heading">
             <div>
-              <strong>分類盤</strong>
-              <small>本を長押しして移動</small>
+              <strong>{bookViewMode === "shelf" ? "削除盤" : "分類盤"}</strong>
+              <small>
+                {bookViewMode === "shelf" ? "本を長押しして削除" : "本を長押しして移動"}
+              </small>
             </div>
             <button
               type="button"
@@ -1379,7 +1553,7 @@ export function BookLibrary() {
             </button>
           </div>
           <div className="category-drop-grid">
-            {bookCategories.map((category) => (
+            {bookViewMode === "dial" && bookCategories.map((category) => (
               <button
                 className={categoryDropActive === category.id ? "category-drop-target is-active" : "category-drop-target"}
                 type="button"
@@ -1449,6 +1623,36 @@ export function BookLibrary() {
               ×
             </button>
           </div>
+
+          <section className="settings-section" aria-labelledby="view-mode-title">
+            <h3 id="view-mode-title">本の表示方法</h3>
+            <p>分類を切り替えるダイヤル表示と、すべての分類を見渡せる棚一覧表示を選べます。</p>
+            <fieldset className="view-mode-options">
+              <legend className="visually-hidden">本の表示方法</legend>
+              <label htmlFor="book-view-mode-dial" aria-label="ダイヤル表示">
+                <input
+                  id="book-view-mode-dial"
+                  type="radio"
+                  name="book-view-mode"
+                  value="dial"
+                  checked={bookViewMode === "dial"}
+                  onChange={() => selectBookViewMode("dial")}
+                />
+                <span><strong>ダイヤル表示</strong><small>分類を1つずつ表示</small></span>
+              </label>
+              <label htmlFor="book-view-mode-shelf" aria-label="棚一覧表示">
+                <input
+                  id="book-view-mode-shelf"
+                  type="radio"
+                  name="book-view-mode"
+                  value="shelf"
+                  checked={bookViewMode === "shelf"}
+                  onChange={() => selectBookViewMode("shelf")}
+                />
+                <span><strong>棚一覧表示</strong><small>分類ごとに横へスクロール</small></span>
+              </label>
+            </fieldset>
+          </section>
 
           <section className="settings-section" aria-labelledby="backup-title">
             <h3 id="backup-title">完全バックアップ</h3>
