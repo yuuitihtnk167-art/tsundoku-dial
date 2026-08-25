@@ -89,6 +89,11 @@ type BookCategoryOption = {
 
 type BookViewMode = "dial" | "shelf";
 
+type BookDropTarget =
+  | { type: "delete" }
+  | { type: "category"; category: BookCategory; bookId: string | null }
+  | null;
+
 const bookCategories: BookCategoryOption[] = [
   { id: "unclassified", label: "積読", dropLabel: "積読に戻す", angle: 0 },
   { id: "reread", label: "もう一度読みたい", dropLabel: "もう一度読みたい", angle: 72 },
@@ -118,6 +123,16 @@ function getInitialBookViewMode(): BookViewMode {
 
 function getBookCategory(book: StoredBook): BookCategory {
   return book.category ?? "unclassified";
+}
+
+function distanceFromPointToRect(clientX: number, clientY: number, bounds: DOMRect) {
+  const horizontalDistance = clientX < bounds.left
+    ? bounds.left - clientX
+    : clientX > bounds.right ? clientX - bounds.right : 0;
+  const verticalDistance = clientY < bounds.top
+    ? bounds.top - clientY
+    : clientY > bounds.bottom ? clientY - bounds.bottom : 0;
+  return Math.hypot(horizontalDistance, verticalDistance);
 }
 
 const cropHandles: Array<{ handle: CropHandle; label: string }> = [
@@ -933,9 +948,50 @@ export function BookLibrary() {
     setCategoryDropActive(category);
   }
 
+  function resolveBookDropTarget(
+    clientX: number,
+    clientY: number,
+    draggedId: string,
+  ): BookDropTarget {
+    const element = document.elementFromPoint(clientX, clientY) as HTMLElement | null;
+    let dropElement = element?.closest<HTMLElement>("[data-book-drop]") ?? null;
+    const dropGrid = element?.closest<HTMLElement>(".category-drop-grid");
+
+    if (!dropElement && dropGrid) {
+      const candidates = Array.from(
+        dropGrid.querySelectorAll<HTMLElement>("[data-book-drop]"),
+      );
+      dropElement = candidates.reduce<HTMLElement | null>((nearest, candidate) => {
+        if (!nearest) return candidate;
+        const candidateBounds = candidate.getBoundingClientRect();
+        const nearestBounds = nearest.getBoundingClientRect();
+        return distanceFromPointToRect(clientX, clientY, candidateBounds) <
+          distanceFromPointToRect(clientX, clientY, nearestBounds)
+          ? candidate
+          : nearest;
+      }, null);
+    }
+
+    if (dropElement?.dataset.bookDrop === "delete") return { type: "delete" };
+    if (dropElement?.dataset.bookDrop !== "category") return null;
+
+    const categoryValue = dropElement.dataset.categoryDrop as BookCategory | undefined;
+    const draggedBook = booksRef.current.find((book) => book.id === draggedId);
+    const draggedCategory = draggedBook ? getBookCategory(draggedBook) : null;
+    const validCategory = bookCategories.some((category) => category.id === categoryValue);
+    if (!validCategory || categoryValue === draggedCategory || !categoryValue) return null;
+
+    return {
+      type: "category",
+      category: categoryValue,
+      bookId: element?.closest<HTMLElement>("[data-book-id]")?.dataset.bookId ?? null,
+    };
+  }
+
   function updateBookDragTargets(clientX: number, clientY: number, draggedId: string) {
     const element = document.elementFromPoint(clientX, clientY) as HTMLElement | null;
-    const overDelete = Boolean(element?.closest(".delete-drop-zone"));
+    const dropTarget = resolveBookDropTarget(clientX, clientY, draggedId);
+    const overDelete = dropTarget?.type === "delete";
     setDeleteTarget(overDelete);
     if (overDelete) {
       setCategoryTarget(null);
@@ -943,28 +999,18 @@ export function BookLibrary() {
       return;
     }
 
-    const trayCategoryValue = element
-      ?.closest<HTMLElement>("[data-category-drop]")
-      ?.dataset.categoryDrop as BookCategory | undefined;
-    const rowCategoryValue = element
-      ?.closest<HTMLElement>("[data-category-row]")
-      ?.dataset.categoryRow as BookCategory | undefined;
-    const categoryValue = trayCategoryValue ?? rowCategoryValue;
-    const draggedBook = booksRef.current.find((book) => book.id === draggedId);
-    const draggedCategory = draggedBook ? getBookCategory(draggedBook) : null;
-    const overCategory = bookCategories.some((category) => category.id === categoryValue) &&
-      categoryValue !== draggedCategory
-      ? categoryValue ?? null
-      : null;
+    const overCategory = dropTarget?.type === "category" ? dropTarget.category : null;
     setCategoryTarget(overCategory);
     if (overCategory) {
-      categoryDropBookIdRef.current = element
-        ?.closest<HTMLElement>("[data-book-id]")
-        ?.dataset.bookId ?? null;
+      categoryDropBookIdRef.current = dropTarget?.type === "category"
+        ? dropTarget.bookId
+        : null;
       return;
     }
     categoryDropBookIdRef.current = null;
 
+    const draggedBook = booksRef.current.find((book) => book.id === draggedId);
+    const draggedCategory = draggedBook ? getBookCategory(draggedBook) : null;
     const targetId = element?.closest<HTMLElement>("[data-book-id]")?.dataset.bookId;
     if (!targetId || targetId === draggedId) {
       lastReorderTargetRef.current = null;
@@ -1119,9 +1165,21 @@ export function BookLibrary() {
 
   async function removeDraggedBook(bookId: string) {
     const book = booksRef.current.find((item) => item.id === bookId);
+    if (!book) {
+      setError("削除する本を確認できませんでした。");
+      return;
+    }
+    const confirmed = window.confirm(
+      `「${book.title}」を削除しますか？\nこの操作は取り消せません。`,
+    );
+    if (!confirmed) {
+      setClassificationMessage("削除をキャンセルしました。");
+      return;
+    }
+
     try {
       await deleteBook(bookId);
-      if (book) URL.revokeObjectURL(book.coverUrl);
+      URL.revokeObjectURL(book.coverUrl);
       const next = booksRef.current.filter((item) => item.id !== bookId);
       booksRef.current = next;
       setBooks(next);
@@ -1196,9 +1254,12 @@ export function BookLibrary() {
 
     const draggedId = draggingBookIdRef.current;
     if (!draggedId) return;
-    const shouldDelete = allowDelete && deleteDropActiveRef.current;
-    const targetCategory = allowDelete ? categoryDropActiveRef.current : null;
-    const targetBookId = categoryDropBookIdRef.current;
+    const dropTarget = allowDelete
+      ? resolveBookDropTarget(event.clientX, event.clientY, draggedId)
+      : null;
+    const shouldDelete = dropTarget?.type === "delete";
+    const targetCategory = dropTarget?.type === "category" ? dropTarget.category : null;
+    const targetBookId = dropTarget?.type === "category" ? dropTarget.bookId : null;
     const shouldFinishDrag = allowDelete && dragMovedRef.current;
     draggingBookIdRef.current = null;
     dragOriginRef.current = null;
@@ -1656,6 +1717,8 @@ export function BookLibrary() {
                 <section
                   className={categoryDropActive === category ? "bookshelf-category is-drop-active" : "bookshelf-category"}
                   key={category}
+                  data-book-drop="category"
+                  data-category-drop={category}
                   data-category-row={category}
                   aria-labelledby={`bookshelf-category-${category}`}
                 >
@@ -1724,6 +1787,7 @@ export function BookLibrary() {
                 className={categoryDropActive === category.id ? "category-drop-target is-active" : "category-drop-target"}
                 type="button"
                 key={category.id}
+                data-book-drop="category"
                 data-category-drop={category.id}
                 disabled={!draggingBookId}
               >
@@ -1734,6 +1798,7 @@ export function BookLibrary() {
             <button
               className={deleteDropActive ? "delete-drop-zone is-active" : "delete-drop-zone"}
               type="button"
+              data-book-drop="delete"
               disabled={!draggingBookId}
             >
               <span aria-hidden="true">×</span>

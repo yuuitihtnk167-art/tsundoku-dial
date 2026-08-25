@@ -68,6 +68,11 @@ test("GitHub Pages用の静的アプリを生成する", async () => {
   assert.match(app, /もう一度読みたい/);
   assert.match(app, /持っている/);
   assert.match(app, /data-category-drop=\{category\.id\}/);
+  assert.match(app, /data-book-drop="category"/);
+  assert.match(app, /data-book-drop="delete"/);
+  assert.match(app, /function resolveBookDropTarget/);
+  assert.match(app, /dropGrid\.querySelectorAll<HTMLElement>\("\[data-book-drop\]"\)/);
+  assert.match(app, /resolveBookDropTarget\(event\.clientX, event\.clientY, draggedId\)/);
   assert.match(app, /classification-tray/);
   assert.match(app, /classificationPanelOpen && books\.length > 0/);
   assert.doesNotMatch(app, /\(classificationPanelOpen \|\| draggingBookId\) && books\.length > 0/);
@@ -81,6 +86,9 @@ test("GitHub Pages用の静的アプリを生成する", async () => {
   assert.match(app, /delete-drop-zone/);
   assert.match(app, /saveBookOrder/);
   assert.match(app, /deleteBook/);
+  assert.match(app, /「\$\{book\.title\}」を削除しますか？/);
+  assert.match(app, /この操作は取り消せません/);
+  assert.match(app, /削除をキャンセルしました/);
   assert.doesNotMatch(app, /accept="image\/\*"|標準カメラ|fileInputRef|choosePhoto/);
   assert.match(app, /className="settings-button"/);
   assert.match(styles, /\.add-button, \.settings-button \{ border: 2px solid var\(--brass\)/);
@@ -137,6 +145,6 @@ test("GitHub Pages用の静的アプリを生成する", async () => {
     parsedManifest.icons.map(({ sizes }) => sizes),
     ["192x192", "512x512"],
   );
-  assert.match(serviceWorker, /tsundoku-dial-v26/);
+  assert.match(serviceWorker, /tsundoku-dial-v28/);
   assert.match(serviceWorker, /caches\.delete/);
 });
