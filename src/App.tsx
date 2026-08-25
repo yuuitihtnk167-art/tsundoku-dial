@@ -125,7 +125,9 @@ function getBookCategory(book: StoredBook): BookCategory {
   return book.category ?? "unclassified";
 }
 
-function distanceFromPointToRect(clientX: number, clientY: number, bounds: DOMRect) {
+type RectBounds = Pick<DOMRect, "left" | "top" | "right" | "bottom">;
+
+function distanceFromPointToRect(clientX: number, clientY: number, bounds: RectBounds) {
   const horizontalDistance = clientX < bounds.left
     ? bounds.left - clientX
     : clientX > bounds.right ? clientX - bounds.right : 0;
@@ -133,6 +135,12 @@ function distanceFromPointToRect(clientX: number, clientY: number, bounds: DOMRe
     ? bounds.top - clientY
     : clientY > bounds.bottom ? clientY - bounds.bottom : 0;
   return Math.hypot(horizontalDistance, verticalDistance);
+}
+
+function overlapArea(first: RectBounds, second: RectBounds) {
+  const width = Math.max(0, Math.min(first.right, second.right) - Math.max(first.left, second.left));
+  const height = Math.max(0, Math.min(first.bottom, second.bottom) - Math.max(first.top, second.top));
+  return width * height;
 }
 
 const cropHandles: Array<{ handle: CropHandle; label: string }> = [
@@ -970,6 +978,33 @@ export function BookLibrary() {
           ? candidate
           : nearest;
       }, null);
+    }
+
+    if (!dropElement) {
+      const dragPreview = document.querySelector<HTMLElement>(".book-drag-preview");
+      const classificationTray = document.querySelector<HTMLElement>(".classification-tray");
+      if (dragPreview && classificationTray) {
+        const previewBounds = dragPreview.getBoundingClientRect();
+        const draggedCoverBounds: RectBounds = {
+          left: clientX - previewBounds.width / 2,
+          right: clientX + previewBounds.width / 2,
+          top: clientY - previewBounds.height / 2,
+          bottom: clientY + previewBounds.height / 2,
+        };
+        const candidates = Array.from(
+          classificationTray.querySelectorAll<HTMLElement>("[data-book-drop]"),
+        );
+        let largestOverlap = 0;
+        dropElement = candidates.reduce<HTMLElement | null>((best, candidate) => {
+          const candidateOverlap = overlapArea(
+            draggedCoverBounds,
+            candidate.getBoundingClientRect(),
+          );
+          if (candidateOverlap <= largestOverlap) return best;
+          largestOverlap = candidateOverlap;
+          return candidate;
+        }, null);
+      }
     }
 
     if (dropElement?.dataset.bookDrop === "delete") return { type: "delete" };
