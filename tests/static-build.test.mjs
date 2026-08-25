@@ -28,6 +28,10 @@ test("GitHub Pages用の静的アプリを生成する", async () => {
   assert.match(app, /cropHandles\.map/);
   assert.match(app, /minimumCropSize = 8/);
   assert.match(app, /navigator\.share/);
+  assert.match(app, /createTitleAnalysisPrompt/);
+  assert.match(app, /正式タイトル・本の要約・表紙画像/);
+  assert.match(app, /navigator\.clipboard\.read\(\)/);
+  assert.match(app, /表紙画像を貼り付ける/);
   assert.match(app, /navigator\.canShare/);
   assert.match(app, /new File\(/);
   assert.match(app, /共有先でChatGPTを選ぶ/);
@@ -66,7 +70,7 @@ test("GitHub Pages用の静的アプリを生成する", async () => {
   assert.match(app, /data-category-drop=\{category\.id\}/);
   assert.match(app, /classification-tray/);
   assert.match(app, /classificationPanelOpen && books\.length > 0/);
-  assert.doesNotMatch(app, /classificationPanelOpen \|\| draggingBookId/);
+  assert.doesNotMatch(app, /\(classificationPanelOpen \|\| draggingBookId\) && books\.length > 0/);
   assert.match(app, /分類盤を表示する/);
   assert.match(app, /分類盤を閉じる/);
   assert.match(styles, /\.dial-knob/);
@@ -85,6 +89,9 @@ test("GitHub Pages用の静的アプリを生成する", async () => {
   assert.match(app, /data-category-row=\{category\}/);
   assert.match(app, /bookViewMode === "shelf" \? "is-delete-only"/);
   assert.match(app, /preventScrollWhileDragging/);
+  assert.match(app, /function startBookAutoScroll\(\) \{\s+if \(classificationPanelOpen\) return/);
+  assert.match(app, /document\.body\.style\.position = "fixed"/);
+  assert.match(app, /window\.scrollTo\(\{ top: scrollY, behavior: "instant" \}\)/);
   assert.match(app, /getBookDragHorizontalScrollDelta/);
   assert.match(styles, /\.bookshelf-row-scroll/);
   assert.match(styles, /touch-action: pan-x pan-y/);
@@ -125,6 +132,6 @@ test("GitHub Pages用の静的アプリを生成する", async () => {
     parsedManifest.icons.map(({ sizes }) => sizes),
     ["192x192", "512x512"],
   );
-  assert.match(serviceWorker, /tsundoku-dial-v22/);
+  assert.match(serviceWorker, /tsundoku-dial-v24/);
   assert.match(serviceWorker, /caches\.delete/);
 });
