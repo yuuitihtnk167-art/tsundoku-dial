@@ -54,11 +54,9 @@ button { color: inherit; }
   cursor: pointer;
   box-shadow: 0 8px 24px rgba(24,37,31,.12);
 }
-.add-button { border: 2px solid var(--brass); border-radius: 9px; background: linear-gradient(#fff7df, #ded0ab); color: var(--forest); padding: 10px 15px; font-weight: 800; cursor: pointer; box-shadow: inset 0 0 0 2px rgba(255,255,255,.55), 0 4px 0 #75572d, 0 7px 14px rgba(73,49,31,.18); }
-.add-button:active { transform: translateY(3px); box-shadow: inset 0 0 0 2px rgba(255,255,255,.4), 0 1px 0 #75572d; }
-.add-button span { color: var(--forest); font-size: 18px; margin-right: 5px; }
-.settings-button { border: 1px solid #80602f; border-radius: 9px; background: #f4ead0; color: var(--forest); padding: 10px 13px; font-weight: 800; cursor: pointer; }
-.settings-button:hover, .settings-button:focus-visible { background: #fff7df; }
+.add-button, .settings-button { border: 2px solid var(--brass); border-radius: 9px; background: linear-gradient(#fff7df, #ded0ab); color: var(--forest); padding: 10px 15px; font-weight: 800; cursor: pointer; box-shadow: inset 0 0 0 2px rgba(255,255,255,.55), 0 4px 0 #75572d, 0 7px 14px rgba(73,49,31,.18); }
+.add-button:active, .settings-button:active { transform: translateY(3px); box-shadow: inset 0 0 0 2px rgba(255,255,255,.4), 0 1px 0 #75572d; }
+.add-button span, .settings-button span { color: var(--forest); font-size: 18px; margin-right: 5px; }
 
 .eyebrow { margin: 0 0 16px; color: var(--forest); font-size: 11px; font-weight: 800; letter-spacing: .18em; }
 
@@ -306,8 +304,7 @@ button { color: inherit; }
   .brand-mark { width: 31px; height: 31px; }
   .topbar { padding: 9px 10px; }
   .topbar-actions { gap: 6px; }
-  .settings-button { padding: 9px 10px; font-size: 12px; }
-  .add-button { padding: 9px 11px; font-size: 12px; }
+  .settings-button, .add-button { padding: 9px 11px; font-size: 12px; }
   .category-console { width: calc(100% - 20px); margin: 16px auto 24px; padding: 17px 9px 20px; border-width: 5px; border-radius: 17px; }
   .console-nameplate { padding: 8px 12px; }
   .console-nameplate h1 { font-size: 19px; }

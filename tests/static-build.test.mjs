@@ -83,12 +83,17 @@ test("GitHub Pages用の静的アプリを生成する", async () => {
   assert.match(app, /deleteBook/);
   assert.doesNotMatch(app, /accept="image\/\*"|標準カメラ|fileInputRef|choosePhoto/);
   assert.match(app, /className="settings-button"/);
+  assert.match(styles, /\.add-button, \.settings-button \{ border: 2px solid var\(--brass\)/);
+  assert.match(styles, /\.add-button:active, \.settings-button:active/);
   assert.match(app, /type BookViewMode = "dial" \| "shelf"/);
   assert.match(app, /tsundoku-dial-book-view-mode/);
   assert.match(app, /shelfCategoryOrder/);
   assert.match(app, /data-category-row=\{category\}/);
   assert.match(app, /bookViewMode === "shelf" \? "is-delete-only"/);
   assert.match(app, /preventScrollWhileDragging/);
+  assert.match(app, /if \(draggingBookIdRef\.current\) event\.preventDefault\(\)/);
+  assert.doesNotMatch(app, /if \(classificationPanelOpen \|\| draggingBookIdRef\.current\) event\.preventDefault\(\)/);
+  assert.match(app, /if \(!classificationPanelOpen \|\| !draggingBookId\) return/);
   assert.match(app, /function startBookAutoScroll\(\) \{\s+if \(classificationPanelOpen\) return/);
   assert.match(app, /document\.body\.style\.position = "fixed"/);
   assert.match(app, /window\.scrollTo\(\{ top: scrollY, behavior: "instant" \}\)/);
@@ -132,6 +137,6 @@ test("GitHub Pages用の静的アプリを生成する", async () => {
     parsedManifest.icons.map(({ sizes }) => sizes),
     ["192x192", "512x512"],
   );
-  assert.match(serviceWorker, /tsundoku-dial-v24/);
+  assert.match(serviceWorker, /tsundoku-dial-v26/);
   assert.match(serviceWorker, /caches\.delete/);
 });

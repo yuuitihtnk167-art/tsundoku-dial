@@ -505,13 +505,13 @@ export function BookLibrary() {
   }, []);
   useEffect(() => {
     const preventScrollWhileDragging = (event: TouchEvent) => {
-      if (classificationPanelOpen || draggingBookIdRef.current) event.preventDefault();
+      if (draggingBookIdRef.current) event.preventDefault();
     };
     document.addEventListener("touchmove", preventScrollWhileDragging, { passive: false });
     return () => document.removeEventListener("touchmove", preventScrollWhileDragging);
-  }, [classificationPanelOpen]);
+  }, []);
   useEffect(() => {
-    if (!classificationPanelOpen) return;
+    if (!classificationPanelOpen || !draggingBookId) return;
 
     const scrollY = window.scrollY;
     const previousPosition = document.body.style.position;
@@ -530,7 +530,7 @@ export function BookLibrary() {
       document.body.style.overflow = previousOverflow;
       window.scrollTo({ top: scrollY, behavior: "instant" });
     };
-  }, [classificationPanelOpen]);
+  }, [classificationPanelOpen, draggingBookId]);
   useEffect(() => {
     if (!selectedBookId) return;
     const clearSelectionOutsideBook = (event: PointerEvent) => {
