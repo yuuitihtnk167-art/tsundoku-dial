@@ -78,7 +78,16 @@ test("GitHub Pages用の静的アプリを生成する", async () => {
   assert.match(app, /saveBookOrder/);
   assert.match(app, /deleteBook/);
   assert.doesNotMatch(app, /accept="image\/\*"|標準カメラ|fileInputRef|choosePhoto/);
-  assert.match(app, /className="dial-settings"/);
+  assert.match(app, /className="settings-button"/);
+  assert.match(app, /type BookViewMode = "dial" \| "shelf"/);
+  assert.match(app, /tsundoku-dial-book-view-mode/);
+  assert.match(app, /shelfCategoryOrder/);
+  assert.match(app, /data-category-row=\{category\}/);
+  assert.match(app, /bookViewMode === "shelf" \? "is-delete-only"/);
+  assert.match(app, /preventScrollWhileDragging/);
+  assert.match(app, /getBookDragHorizontalScrollDelta/);
+  assert.match(styles, /\.bookshelf-row-scroll/);
+  assert.match(styles, /touch-action: pan-x pan-y/);
   assert.match(app, /完全バックアップを作成/);
   assert.match(app, /accept="\.json,application\/json"/);
   assert.match(app, /createCompleteBackup/);
@@ -116,6 +125,6 @@ test("GitHub Pages用の静的アプリを生成する", async () => {
     parsedManifest.icons.map(({ sizes }) => sizes),
     ["192x192", "512x512"],
   );
-  assert.match(serviceWorker, /tsundoku-dial-v21/);
+  assert.match(serviceWorker, /tsundoku-dial-v22/);
   assert.match(serviceWorker, /caches\.delete/);
 });
