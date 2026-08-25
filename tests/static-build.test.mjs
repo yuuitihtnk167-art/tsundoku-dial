@@ -75,7 +75,11 @@ test("GitHub Pages用の静的アプリを生成する", async () => {
   assert.match(app, /document\.querySelector<HTMLElement>\("\.book-drag-preview"\)/);
   assert.match(app, /classificationTray\.querySelectorAll<HTMLElement>\("\[data-book-drop\]"\)/);
   assert.match(app, /overlapArea\(\s+draggedCoverBounds,/);
-  assert.match(app, /resolveBookDropTarget\(event\.clientX, event\.clientY, draggedId\)/);
+  assert.match(app, /resolveCompletedDropTarget/);
+  assert.match(app, /isAvailableCategoryDrop/);
+  assert.match(app, /bookDropTargetRef\.current/);
+  assert.match(app, /finishBookPress\(event, "release"\)/);
+  assert.match(app, /finishBookPress\(event, "cancel"\)/);
   assert.match(app, /classification-tray/);
   assert.match(app, /classificationPanelOpen && books\.length > 0/);
   assert.doesNotMatch(app, /\(classificationPanelOpen \|\| draggingBookId\) && books\.length > 0/);
@@ -148,6 +152,6 @@ test("GitHub Pages用の静的アプリを生成する", async () => {
     parsedManifest.icons.map(({ sizes }) => sizes),
     ["192x192", "512x512"],
   );
-  assert.match(serviceWorker, /tsundoku-dial-v29/);
+  assert.match(serviceWorker, /tsundoku-dial-v30/);
   assert.match(serviceWorker, /caches\.delete/);
 });
