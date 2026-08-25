@@ -177,6 +177,65 @@ const bookAnalysisPrompt = [
   "- ISBN、価格、発売日などは、内容理解に必要でなければ本文には入れない",
 ].join("\n");
 
+function createTitleAnalysisPrompt(inputTitle: string) {
+  return [
+    "次のタイトルに該当する本をWebで調べ、読書記録アプリに保存するための情報を作成してください。",
+    "",
+    "【入力したタイトル】",
+    "",
+    `「${inputTitle}」`,
+    "",
+    "【調査】",
+    "",
+    "- 入力したタイトルから、該当する本の正式な書名、著者名、出版社などを確認してください。",
+    "- 出版社の公式書籍ページ、著者の公式情報など、信頼できる情報を優先してください。",
+    "- 同名の本や複数の版があり、どの本か判断できない場合は候補を提示し、勝手に決めないでください。",
+    "- 確認できない情報を推測で書かないでください。",
+    "- 確認できない情報は「確認できない」としてください。",
+    "",
+    "【出力形式】",
+    "",
+    "最初に、本の正式タイトルだけを独立したコードブロックで出力してください。",
+    "",
+    "```text",
+    "本の正式タイトル",
+    "```",
+    "",
+    "その後、読書記録用の本文を別のコードブロックで出力してください。",
+    "",
+    "本文には次の内容を、簡潔で分かりやすい文章にまとめてください。",
+    "",
+    "- どんな本なのか",
+    "- 主に何を学べる本なのか",
+    "- 主な内容・テーマ",
+    "- どんな人に向いている本なのか",
+    "- この本の特徴",
+    "",
+    "文章は、あとから読書記録を見返したときに「どんな本だったか」がすぐ分かる程度の長さにしてください。",
+    "長すぎる説明や細かすぎる目次紹介は不要です。",
+    "",
+    "```text",
+    "読書記録用本文",
+    "```",
+    "",
+    "【文章の方針】",
+    "",
+    "- 事実に基づいて書く",
+    "- 宣伝文句をそのまま使わない",
+    "- 難しい専門用語はできるだけ分かりやすく言い換える",
+    "- 200～300文字程度を目安にする",
+    "- 感想や評価は勝手に付け加えない",
+    "- ISBN、価格、発売日などは、内容理解に必要でなければ本文には入れない",
+    "",
+    "【表紙画像】",
+    "",
+    "- 特定した本と同じ版の表紙画像を1点探してください。",
+    "- AIで新しい表紙画像を生成せず、実在する本の表紙を使用してください。",
+    "- 画像と、その画像を確認した書籍ページのリンクを表示してください。",
+    "- 該当する表紙を確認できない場合は、別の本の画像を表示せず「表紙画像を確認できない」としてください。",
+  ].join("\n");
+}
+
 const minimumCropSize = 8;
 const bookDragScrollEdge = 88;
 const bookDragMaximumScrollSpeed = 112;
@@ -256,6 +315,9 @@ export function BookLibrary() {
   const [preparedShare, setPreparedShare] = useState<PreparedShare | null>(null);
   const [sharing, setSharing] = useState(false);
   const [promptCopied, setPromptCopied] = useState(false);
+  const [titlePromptCopied, setTitlePromptCopied] = useState(false);
+  const [titleSharing, setTitleSharing] = useState(false);
+  const [pastingCover, setPastingCover] = useState(false);
   const [activeCategory, setActiveCategory] = useState<BookCategory>("unclassified");
   const [bookViewMode, setBookViewMode] = useState<BookViewMode>(getInitialBookViewMode);
   const [dialRotation, setDialRotation] = useState(0);
@@ -354,6 +416,7 @@ export function BookLibrary() {
         if (result.title && !titleRef.current.trim()) {
           titleRef.current = result.title;
           setTitle(result.title);
+          setTitlePromptCopied(false);
           setDuplicateConfirmed(false);
         }
 
@@ -442,11 +505,32 @@ export function BookLibrary() {
   }, []);
   useEffect(() => {
     const preventScrollWhileDragging = (event: TouchEvent) => {
-      if (draggingBookIdRef.current) event.preventDefault();
+      if (classificationPanelOpen || draggingBookIdRef.current) event.preventDefault();
     };
     document.addEventListener("touchmove", preventScrollWhileDragging, { passive: false });
     return () => document.removeEventListener("touchmove", preventScrollWhileDragging);
-  }, []);
+  }, [classificationPanelOpen]);
+  useEffect(() => {
+    if (!classificationPanelOpen) return;
+
+    const scrollY = window.scrollY;
+    const previousPosition = document.body.style.position;
+    const previousTop = document.body.style.top;
+    const previousWidth = document.body.style.width;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.position = "fixed";
+    document.body.style.top = `-${scrollY}px`;
+    document.body.style.width = "100%";
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.position = previousPosition;
+      document.body.style.top = previousTop;
+      document.body.style.width = previousWidth;
+      document.body.style.overflow = previousOverflow;
+      window.scrollTo({ top: scrollY, behavior: "instant" });
+    };
+  }, [classificationPanelOpen]);
   useEffect(() => {
     if (!selectedBookId) return;
     const clearSelectionOutsideBook = (event: PointerEvent) => {
@@ -555,6 +639,7 @@ export function BookLibrary() {
     setPhotoAspectRatio(2 / 3);
     setCropMessage("");
     setPromptCopied(false);
+    setTitlePromptCopied(false);
     titleRef.current = "";
     setTitle("");
     setNotes("");
@@ -592,12 +677,14 @@ export function BookLibrary() {
           ? "表紙を自動検出しました。必要なら白い枠を直接動かしてください。"
           : "表紙を自動検出できませんでした。白い枠を直接動かして調整してください。",
       );
+      return true;
     } catch (photoError) {
       setError(
         photoError instanceof Error
           ? photoError.message
           : "撮影した画像を処理できませんでした。",
       );
+      return false;
     } finally {
       setDetecting(false);
     }
@@ -673,6 +760,7 @@ export function BookLibrary() {
         : "この本には元画像がないため、現在の表紙の範囲内で調整できます。",
     );
     setPromptCopied(false);
+    setTitlePromptCopied(false);
     titleRef.current = selectedBook.title;
     setTitle(selectedBook.title);
     setNotes(selectedBook.notes);
@@ -909,6 +997,7 @@ export function BookLibrary() {
   }
 
   function startBookAutoScroll() {
+    if (classificationPanelOpen) return;
     if (bookAutoScrollFrameRef.current !== null) return;
 
     const scrollFrame = () => {
@@ -1207,6 +1296,83 @@ export function BookLibrary() {
       setError("画像を共有できませんでした。もう一度お試しください。");
     } finally {
       setSharing(false);
+    }
+  }
+
+  async function copyTitleAnalysisPrompt() {
+    const trimmedTitle = title.trim();
+    if (!trimmedTitle) {
+      setError("先にタイトルを入力してください。");
+      return;
+    }
+    if (!navigator.clipboard?.writeText) {
+      setError("この端末またはブラウザは文章のコピーに対応していません。");
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(createTitleAnalysisPrompt(trimmedTitle));
+      setTitlePromptCopied(true);
+      setError("");
+    } catch {
+      setError("分析用の文章をコピーできませんでした。もう一度お試しください。");
+    }
+  }
+
+  async function shareTitleAnalysisPrompt() {
+    const trimmedTitle = title.trim();
+    if (!trimmedTitle) {
+      setError("先にタイトルを入力してください。");
+      return;
+    }
+    if (!navigator.share) {
+      setError("この端末またはブラウザは共有に対応していません。分析用の文章をコピーしてお使いください。");
+      return;
+    }
+
+    setTitleSharing(true);
+    setError("");
+    try {
+      await navigator.share({
+        title: `${trimmedTitle}を調べる`,
+        text: createTitleAnalysisPrompt(trimmedTitle),
+      });
+    } catch (shareError) {
+      if (shareError instanceof DOMException && shareError.name === "AbortError") return;
+      setError("分析用の文章を共有できませんでした。もう一度お試しください。");
+    } finally {
+      setTitleSharing(false);
+    }
+  }
+
+  async function pasteCoverFromClipboard() {
+    if (!navigator.clipboard?.read) {
+      setError("この端末またはブラウザは画像の貼り付けに対応していません。");
+      return;
+    }
+
+    setPastingCover(true);
+    setError("");
+    try {
+      const clipboardItems = await navigator.clipboard.read();
+      for (const item of clipboardItems) {
+        const imageType = item.types.find((type) => type.startsWith("image/"));
+        if (!imageType) continue;
+        const image = await item.getType(imageType);
+        const applied = await applyPhoto(image);
+        if (applied) {
+          setCropMessage("貼り付けた表紙画像を読み込みました。必要なら白い枠を調整してください。");
+        }
+        return;
+      }
+      setError("コピーされた画像がありません。表紙画像をコピーしてからお試しください。");
+    } catch (clipboardError) {
+      if (clipboardError instanceof DOMException && clipboardError.name === "NotAllowedError") {
+        setError("クリップボードの読み取りが許可されませんでした。貼り付けを許可してもう一度お試しください。");
+      } else {
+        setError("表紙画像を貼り付けられませんでした。画像をコピーしてからもう一度お試しください。");
+      }
+    } finally {
+      setPastingCover(false);
     }
   }
 
@@ -1885,8 +2051,38 @@ export function BookLibrary() {
             <label><span>タイトル</span><input value={title} onChange={(event) => {
               titleRef.current = event.target.value;
               setTitle(event.target.value);
+              setTitlePromptCopied(false);
               setDuplicateConfirmed(false);
             }} placeholder="あとからでも入力できます" maxLength={160} /></label>
+            <div className="title-analysis-panel">
+              <button
+                className="copy-prompt-button"
+                type="button"
+                onClick={() => void copyTitleAnalysisPrompt()}
+                disabled={!title.trim()}
+              >
+                {titlePromptCopied ? "コピーしました" : "分析用の文章をコピー"}
+              </button>
+              <small>入力したタイトルから、正式タイトル・本の要約・表紙画像をChatGPTで調べます。</small>
+              <button
+                className="share-button"
+                type="button"
+                onClick={() => void shareTitleAnalysisPrompt()}
+                disabled={!title.trim() || titleSharing}
+              >
+                {titleSharing ? "共有画面を開いています…" : "ChatGPTで検索"}
+              </button>
+              <small>共有先でChatGPTを選んでください。</small>
+              <button
+                className="paste-cover-button"
+                type="button"
+                onClick={() => void pasteCoverFromClipboard()}
+                disabled={detecting || pastingCover}
+              >
+                {pastingCover ? "表紙画像を貼り付けています…" : "表紙画像を貼り付ける"}
+              </button>
+              <small>ChatGPTなどでコピーした画像を表紙として読み込みます。</small>
+            </div>
             <label><span>メモ <small>任意</small></span><textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="この本を選んだ理由など" maxLength={1000} rows={3} /></label>
           </div>
 
