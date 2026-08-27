@@ -14,13 +14,8 @@ export function resolveCompletedDropTarget<Category extends string>(
   finalTarget: DragDropTarget<Category>,
   highlightedTarget: DragDropTarget<Category>,
   endReason: "release" | "cancel",
-  dragMoved: boolean,
 ): DragDropTarget<Category> {
-  if (endReason === "cancel") {
-    return dragMoved && highlightedTarget?.type === "category"
-      ? highlightedTarget
-      : null;
-  }
+  if (endReason === "cancel") return null;
 
   if (finalTarget) return finalTarget;
   return highlightedTarget?.type === "category" ? highlightedTarget : null;

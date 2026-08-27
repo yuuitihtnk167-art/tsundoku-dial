@@ -4,7 +4,6 @@ import {
   ChangeEvent,
   CSSProperties,
   FormEvent,
-  KeyboardEvent as ReactKeyboardEvent,
   PointerEvent as ReactPointerEvent,
   useCallback,
   useEffect,
@@ -69,39 +68,33 @@ type PreparedShare = {
 
 type BookPointerStart = {
   pointerId: number;
+  pointerType: string;
   bookId: string;
+  source: HTMLButtonElement;
   startX: number;
   startY: number;
   currentX: number;
   currentY: number;
 };
 
-type DialPointer = {
-  pointerId: number;
-  centerX: number;
-  centerY: number;
-  lastPointerAngle: number;
-  rotation: number;
-  snappedRotation: number;
-};
-
 type BookCategoryOption = {
   id: BookCategory;
   label: string;
   dropLabel: string;
-  angle: number;
 };
 
 type BookViewMode = "dial" | "shelf";
 
 type BookDropTarget = DragDropTarget<BookCategory>;
 
+type BookPointerEvent = Pick<PointerEvent, "pointerId" | "clientX" | "clientY">;
+
 const bookCategories: BookCategoryOption[] = [
-  { id: "unclassified", label: "積読", dropLabel: "積読に戻す", angle: 0 },
-  { id: "reread", label: "もう一度読みたい", dropLabel: "もう一度読みたい", angle: 72 },
-  { id: "read", label: "読んだ", dropLabel: "読んだ", angle: 144 },
-  { id: "owned", label: "持っている", dropLabel: "持っている", angle: 216 },
-  { id: "reading", label: "今読んでいる", dropLabel: "今読んでいる", angle: 288 },
+  { id: "unclassified", label: "積読", dropLabel: "積読に戻す" },
+  { id: "reread", label: "もう一度読みたい", dropLabel: "もう一度読みたい" },
+  { id: "read", label: "読んだ", dropLabel: "読んだ" },
+  { id: "owned", label: "持っている", dropLabel: "持っている" },
+  { id: "reading", label: "今読んでいる", dropLabel: "今読んでいる" },
 ];
 
 const shelfCategoryOrder: BookCategory[] = [
@@ -345,9 +338,6 @@ export function BookLibrary() {
   const [pastingCover, setPastingCover] = useState(false);
   const [activeCategory, setActiveCategory] = useState<BookCategory>("unclassified");
   const [bookViewMode, setBookViewMode] = useState<BookViewMode>(getInitialBookViewMode);
-  const [dialRotation, setDialRotation] = useState(0);
-  const [dialTurning, setDialTurning] = useState(false);
-  const [classificationPanelOpen, setClassificationPanelOpen] = useState(false);
   const [categoryDropActive, setCategoryDropActive] = useState<BookCategory | null>(null);
   const [classificationMessage, setClassificationMessage] = useState("");
   const [selectedBookId, setSelectedBookId] = useState<string | null>(null);
@@ -375,7 +365,6 @@ export function BookLibrary() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const cameraStreamRef = useRef<MediaStream | null>(null);
   const cropDragRef = useRef<CropDrag | null>(null);
-  const dialPointerRef = useRef<DialPointer | null>(null);
   const booksRef = useRef<Book[]>([]);
   const longPressTimerRef = useRef<number | null>(null);
   const bookAutoScrollFrameRef = useRef<number | null>(null);
@@ -388,6 +377,7 @@ export function BookLibrary() {
   const categoryDropActiveRef = useRef<BookCategory | null>(null);
   const bookDropTargetRef = useRef<BookDropTarget>(null);
   const lastReorderTargetRef = useRef<string | null>(null);
+  const bookDragListenersCleanupRef = useRef<(() => void) | null>(null);
   const suppressBookClickRef = useRef(false);
   const coverUrlsRef = useRef<string[]>([]);
   const cropKey = [crop.left, crop.top, crop.right, crop.bottom].join(":");
@@ -521,6 +511,7 @@ export function BookLibrary() {
     coverUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
   }, []);
   useEffect(() => () => {
+    bookDragListenersCleanupRef.current?.();
     if (longPressTimerRef.current !== null) {
       window.clearTimeout(longPressTimerRef.current);
     }
@@ -535,27 +526,6 @@ export function BookLibrary() {
     document.addEventListener("touchmove", preventScrollWhileDragging, { passive: false });
     return () => document.removeEventListener("touchmove", preventScrollWhileDragging);
   }, []);
-  useEffect(() => {
-    if (!classificationPanelOpen || !draggingBookId) return;
-
-    const scrollY = window.scrollY;
-    const previousPosition = document.body.style.position;
-    const previousTop = document.body.style.top;
-    const previousWidth = document.body.style.width;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.position = "fixed";
-    document.body.style.top = `-${scrollY}px`;
-    document.body.style.width = "100%";
-    document.body.style.overflow = "hidden";
-
-    return () => {
-      document.body.style.position = previousPosition;
-      document.body.style.top = previousTop;
-      document.body.style.width = previousWidth;
-      document.body.style.overflow = previousOverflow;
-      window.scrollTo({ top: scrollY, behavior: "instant" });
-    };
-  }, [classificationPanelOpen, draggingBookId]);
   useEffect(() => {
     if (!selectedBookId) return;
     const clearSelectionOutsideBook = (event: PointerEvent) => {
@@ -856,88 +826,10 @@ export function BookLibrary() {
     cropDragRef.current = null;
   }
 
-  function dialPointerAngle(clientX: number, clientY: number, centerX: number, centerY: number) {
-    return (Math.atan2(clientY - centerY, clientX - centerX) * 180) / Math.PI + 90;
-  }
-
-  function normalizeAngleDelta(value: number) {
-    if (value > 180) return value - 360;
-    if (value < -180) return value + 360;
-    return value;
-  }
-
-  function selectDialCategory(category: BookCategory) {
-    const option = bookCategories.find((item) => item.id === category);
-    if (!option) return;
-    const nearestTurn = Math.round((dialRotation - option.angle) / 360);
-    setDialRotation(option.angle + nearestTurn * 360);
+  function selectCategory(category: BookCategory) {
     setActiveCategory(category);
     setClassificationMessage("");
     navigator.vibrate?.(12);
-  }
-
-  function startDialTurn(event: ReactPointerEvent<HTMLDivElement>) {
-    if (!event.isPrimary || (event.pointerType === "mouse" && event.button !== 0)) return;
-    const bounds = event.currentTarget.getBoundingClientRect();
-    const centerX = bounds.left + bounds.width / 2;
-    const centerY = bounds.top + bounds.height / 2;
-    event.currentTarget.setPointerCapture(event.pointerId);
-    dialPointerRef.current = {
-      pointerId: event.pointerId,
-      centerX,
-      centerY,
-      lastPointerAngle: dialPointerAngle(event.clientX, event.clientY, centerX, centerY),
-      rotation: dialRotation,
-      snappedRotation: dialRotation,
-    };
-    setDialTurning(true);
-  }
-
-  function turnDial(event: ReactPointerEvent<HTMLDivElement>) {
-    const pointer = dialPointerRef.current;
-    if (!pointer || pointer.pointerId !== event.pointerId) return;
-    event.preventDefault();
-    const nextPointerAngle = dialPointerAngle(
-      event.clientX,
-      event.clientY,
-      pointer.centerX,
-      pointer.centerY,
-    );
-    pointer.rotation += normalizeAngleDelta(nextPointerAngle - pointer.lastPointerAngle);
-    pointer.lastPointerAngle = nextPointerAngle;
-    const snappedRotation = Math.round(pointer.rotation / 72) * 72;
-    if (snappedRotation === pointer.snappedRotation) return;
-
-    pointer.snappedRotation = snappedRotation;
-    const snappedAngle = ((snappedRotation % 360) + 360) % 360;
-    const option = bookCategories.find((item) => item.angle === snappedAngle) ?? bookCategories[0];
-    setDialRotation(snappedRotation);
-    setActiveCategory(option.id);
-    setClassificationMessage("");
-    navigator.vibrate?.([12, 8, 18]);
-  }
-
-  function finishDialTurn(event: ReactPointerEvent<HTMLDivElement>) {
-    const pointer = dialPointerRef.current;
-    if (!pointer || pointer.pointerId !== event.pointerId) return;
-    const snappedRotation = pointer.snappedRotation;
-    const snappedAngle = ((snappedRotation % 360) + 360) % 360;
-    const option = bookCategories.find((item) => item.angle === snappedAngle) ?? bookCategories[0];
-    dialPointerRef.current = null;
-    setDialTurning(false);
-    setDialRotation(snappedRotation);
-    setActiveCategory(option.id);
-    setClassificationMessage("");
-    navigator.vibrate?.(18);
-  }
-
-  function handleDialKeyDown(event: ReactKeyboardEvent<HTMLDivElement>) {
-    if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) return;
-    event.preventDefault();
-    const currentIndex = bookCategories.findIndex((category) => category.id === activeCategory);
-    const direction = event.key === "ArrowRight" || event.key === "ArrowDown" ? 1 : -1;
-    const nextIndex = (currentIndex + direction + bookCategories.length) % bookCategories.length;
-    selectDialCategory(bookCategories[nextIndex].id);
   }
 
   function clearLongPressTimer() {
@@ -977,11 +869,11 @@ export function BookLibrary() {
     let dropElement = directDropElement && isValidDropElement(directDropElement)
       ? directDropElement
       : null;
-    const dropGrid = element?.closest<HTMLElement>(".category-drop-grid");
+    const dropContainer = element?.closest<HTMLElement>("[data-book-drop-container]");
 
-    if (!directDropElement && dropGrid) {
+    if (!directDropElement && dropContainer) {
       const candidates = Array.from(
-        dropGrid.querySelectorAll<HTMLElement>("[data-book-drop]"),
+        dropContainer.querySelectorAll<HTMLElement>("[data-book-drop]"),
       ).filter(isValidDropElement);
       dropElement = candidates.reduce<HTMLElement | null>((nearest, candidate) => {
         if (!nearest) return candidate;
@@ -996,8 +888,7 @@ export function BookLibrary() {
 
     if (!dropElement) {
       const dragPreview = document.querySelector<HTMLElement>(".book-drag-preview");
-      const classificationTray = document.querySelector<HTMLElement>(".classification-tray");
-      if (dragPreview && classificationTray) {
+      if (dragPreview) {
         const previewBounds = dragPreview.getBoundingClientRect();
         const draggedCoverBounds: RectBounds = {
           left: clientX - previewBounds.width / 2,
@@ -1006,7 +897,7 @@ export function BookLibrary() {
           bottom: clientY + previewBounds.height / 2,
         };
         const candidates = Array.from(
-          classificationTray.querySelectorAll<HTMLElement>("[data-book-drop]"),
+          document.querySelectorAll<HTMLElement>("[data-book-drop]"),
         ).filter(isValidDropElement);
         let largestOverlap = 0;
         dropElement = candidates.reduce<HTMLElement | null>((best, candidate) => {
@@ -1085,7 +976,6 @@ export function BookLibrary() {
   }
 
   function startBookAutoScroll() {
-    if (classificationPanelOpen) return;
     if (bookAutoScrollFrameRef.current !== null) return;
 
     const scrollFrame = () => {
@@ -1098,7 +988,7 @@ export function BookLibrary() {
         pointer.currentX,
         pointer.currentY,
       ) as HTMLElement | null;
-      if (element?.closest(".classification-tray")) return;
+      if (element?.closest("[data-book-drop]")) return;
 
       const shelfRow = element?.closest<HTMLElement>(".bookshelf-row-scroll");
       let rowScrolled = false;
@@ -1116,12 +1006,10 @@ export function BookLibrary() {
         }
       }
 
-      const classificationTray = document.querySelector<HTMLElement>(".classification-tray");
-      const lowerBoundary = classificationTray?.getBoundingClientRect().top ?? window.innerHeight;
       const scrollDelta = getBookDragScrollDelta(
         pointer.currentY,
         window.innerHeight,
-        lowerBoundary,
+        window.innerHeight,
       );
       const previousScrollY = window.scrollY;
       if (scrollDelta !== 0) {
@@ -1151,6 +1039,48 @@ export function BookLibrary() {
     setDragPosition({ x, y });
   }
 
+  function listenForBookDragEvents(source: HTMLButtonElement, pointerId: number) {
+    bookDragListenersCleanupRef.current?.();
+
+    const handlePointerMove = (event: PointerEvent) => {
+      if (event.defaultPrevented || event.pointerId !== pointerId) return;
+      moveBook(event);
+    };
+    const handlePointerUp = (event: PointerEvent) => {
+      finishBookPress(event, "release");
+    };
+    const handlePointerCancel = (event: PointerEvent) => {
+      finishBookPress(event, "cancel");
+    };
+    const handleLostPointerCapture = (event: PointerEvent) => {
+      if (event.pointerId !== pointerId || event.buttons !== 0) return;
+      window.setTimeout(() => {
+        const pointer = bookPointerStartRef.current;
+        if (!pointer || pointer.pointerId !== pointerId) return;
+        finishBookPress({
+          pointerId,
+          clientX: pointer.currentX,
+          clientY: pointer.currentY,
+        }, "release");
+      }, 0);
+    };
+    const cleanup = () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+      window.removeEventListener("pointercancel", handlePointerCancel);
+      source.removeEventListener("lostpointercapture", handleLostPointerCapture);
+      if (bookDragListenersCleanupRef.current === cleanup) {
+        bookDragListenersCleanupRef.current = null;
+      }
+    };
+
+    window.addEventListener("pointermove", handlePointerMove, { passive: false });
+    window.addEventListener("pointerup", handlePointerUp);
+    window.addEventListener("pointercancel", handlePointerCancel);
+    source.addEventListener("lostpointercapture", handleLostPointerCapture);
+    bookDragListenersCleanupRef.current = cleanup;
+  }
+
   function clearBookSelection() {
     selectedBookIdRef.current = null;
     setSelectedBookId(null);
@@ -1162,7 +1092,9 @@ export function BookLibrary() {
     event.currentTarget.setPointerCapture(event.pointerId);
     bookPointerStartRef.current = {
       pointerId: event.pointerId,
+      pointerType: event.pointerType,
       bookId,
+      source: event.currentTarget,
       startX: event.clientX,
       startY: event.clientY,
       currentX: event.clientX,
@@ -1170,17 +1102,20 @@ export function BookLibrary() {
     };
     if (selectedBookIdRef.current === bookId) {
       selectBookForDragging(bookId, event.clientX, event.clientY);
+      listenForBookDragEvents(event.currentTarget, event.pointerId);
       return;
     }
+    if (event.pointerType === "mouse") return;
     longPressTimerRef.current = window.setTimeout(() => {
       const pointer = bookPointerStartRef.current;
       if (!pointer || pointer.bookId !== bookId) return;
       selectBookForDragging(bookId, pointer.currentX, pointer.currentY);
+      listenForBookDragEvents(pointer.source, pointer.pointerId);
       navigator.vibrate?.(25);
     }, 300);
   }
 
-  function moveBook(event: ReactPointerEvent<HTMLButtonElement>) {
+  function moveBook(event: BookPointerEvent & { preventDefault(): void }) {
     const pointerStart = bookPointerStartRef.current;
     if (!pointerStart || pointerStart.pointerId !== event.pointerId) return;
     pointerStart.currentX = event.clientX;
@@ -1189,6 +1124,15 @@ export function BookLibrary() {
       event.clientX - pointerStart.startX,
       event.clientY - pointerStart.startY,
     );
+    if (!draggingBookIdRef.current && pointerStart.pointerType === "mouse" && distance > 6) {
+      clearLongPressTimer();
+      selectBookForDragging(
+        pointerStart.bookId,
+        pointerStart.startX,
+        pointerStart.startY,
+      );
+      listenForBookDragEvents(pointerStart.source, pointerStart.pointerId);
+    }
     if (!draggingBookIdRef.current && distance > 18) {
       clearLongPressTimer();
       return;
@@ -1286,7 +1230,7 @@ export function BookLibrary() {
   }
 
   function finishBookPress(
-    event: ReactPointerEvent<HTMLButtonElement>,
+    event: BookPointerEvent,
     endReason: "release" | "cancel",
   ) {
     const pointerStart = bookPointerStartRef.current;
@@ -1294,6 +1238,7 @@ export function BookLibrary() {
     clearLongPressTimer();
     stopBookAutoScroll();
     bookPointerStartRef.current = null;
+    bookDragListenersCleanupRef.current?.();
 
     const draggedId = draggingBookIdRef.current;
     if (!draggedId) return;
@@ -1304,7 +1249,6 @@ export function BookLibrary() {
       finalDropTarget,
       bookDropTargetRef.current,
       endReason,
-      dragMovedRef.current,
     );
     const shouldDelete = dropTarget?.type === "delete";
     const targetCategory = dropTarget?.type === "category" ? dropTarget.category : null;
@@ -1355,13 +1299,19 @@ export function BookLibrary() {
         aria-pressed={book.id === selectedBookId}
         onClick={() => openBook(book)}
         onContextMenu={(event) => event.preventDefault()}
+        onDragStart={(event) => event.preventDefault()}
         onPointerDown={(event) => startBookPress(event, book.id)}
         onPointerMove={moveBook}
         onPointerUp={(event) => finishBookPress(event, "release")}
         onPointerCancel={(event) => finishBookPress(event, "cancel")}
       >
         <span className="cover-wrap">
-          <img src={book.coverUrl} alt={`${book.title}の表紙`} loading={index > 5 ? "lazy" : "eager"} />
+          <img
+            src={book.coverUrl}
+            alt={`${book.title}の表紙`}
+            loading={index > 5 ? "lazy" : "eager"}
+            draggable={false}
+          />
         </span>
         <strong>{book.title}</strong>
         <small>{formatDate(book.createdAt)}</small>
@@ -1542,7 +1492,6 @@ export function BookLibrary() {
 
   function selectBookViewMode(mode: BookViewMode) {
     setBookViewMode(mode);
-    setClassificationPanelOpen(false);
     clearBookSelection();
     try {
       window.localStorage.setItem(bookViewModeStorageKey, mode);
@@ -1629,7 +1578,6 @@ export function BookLibrary() {
       setBooks(nextBooks);
       setSelectedBook(null);
       setSelectedBookId(null);
-      setClassificationPanelOpen(false);
       setError("");
       setPendingRestore(null);
       setSettingsMessage(`${nextBooks.length}冊を復元しました。`);
@@ -1664,59 +1612,47 @@ export function BookLibrary() {
       </header>
 
       {bookViewMode === "dial" && (
-        <section className="category-console" aria-labelledby="category-dial-title">
-        <div className="console-nameplate">
-          <span aria-hidden="true" />
-          <h1 id="category-dial-title">積読ダイヤル</h1>
-          <span aria-hidden="true" />
-        </div>
-        <div className="category-dial">
-          {bookCategories.map((category) => (
-            <button
-              className={`dial-category dial-category-${category.id}`}
-              type="button"
-              key={category.id}
-              aria-pressed={activeCategory === category.id}
-              onClick={() => selectDialCategory(category.id)}
-            >
-              {category.label}
-            </button>
-          ))}
-          <div
-            className={dialTurning ? "dial-control is-turning" : "dial-control"}
-            role="slider"
-            tabIndex={0}
-            aria-label="表示する本の分類"
-            aria-valuemin={1}
-            aria-valuemax={bookCategories.length}
-            aria-valuenow={bookCategories.findIndex((item) => item.id === activeCategory) + 1}
-            aria-valuetext={activeCategoryOption.label}
-            onKeyDown={handleDialKeyDown}
-            onPointerDown={startDialTurn}
-            onPointerMove={turnDial}
-            onPointerUp={finishDialTurn}
-            onPointerCancel={finishDialTurn}
-          >
-            <div className="dial-bezel" aria-hidden="true">
-              <span
-                className="dial-knob"
-                style={{ transform: `rotate(${dialRotation}deg)` }}
+        <section className="category-console" aria-labelledby="category-panel-title">
+          <div className="console-nameplate">
+            <span aria-hidden="true" />
+            <h1 id="category-panel-title">本の分類</h1>
+            <span aria-hidden="true" />
+          </div>
+          <div className="category-zone-panel" data-book-drop-container>
+            {bookCategories.map((category) => (
+              <button
+                className={[
+                  "category-zone",
+                  activeCategory === category.id ? "is-selected" : "",
+                  categoryDropActive === category.id ? "is-drop-active" : "",
+                ].filter(Boolean).join(" ")}
+                type="button"
+                key={category.id}
+                data-book-drop="category"
+                data-category-drop={category.id}
+                aria-pressed={activeCategory === category.id}
+                onClick={() => selectCategory(category.id)}
               >
-                <i className="dial-pointer" />
-              </span>
-              <span className="dial-channel-window">
-                {String(bookCategories.findIndex((item) => item.id === activeCategory) + 1).padStart(2, "0")}
-              </span>
+                <span>{category.label}</span>
+                <small>{books.filter((book) => getBookCategory(book) === category.id).length}冊</small>
+              </button>
+            ))}
+            <div
+              className={deleteDropActive ? "category-delete-zone is-drop-active" : "category-delete-zone"}
+              data-book-drop="delete"
+              aria-label="ここへ本をドロップして削除"
+            >
+              <span aria-hidden="true">×</span>
+              <strong>{deleteDropActive ? "ここで離して削除" : "削除"}</strong>
             </div>
           </div>
-        </div>
-        <p className="category-counter" aria-live="polite">
-          <span aria-hidden="true" />
-          {activeCategory === "unclassified" ? "積読・未分類" : activeCategoryOption.label}
-          <strong>{visibleBooks.length}冊</strong>
-          <span aria-hidden="true" />
-        </p>
-        <p className="dial-help">ダイヤルを回すか、分類名をタップしてください</p>
+          <p className="category-counter" aria-live="polite">
+            <span aria-hidden="true" />
+            {activeCategory === "unclassified" ? "積読・未分類" : activeCategoryOption.label}
+            <strong>{visibleBooks.length}冊</strong>
+            <span aria-hidden="true" />
+          </p>
+          <p className="category-panel-help">分類をタップして表示。本をドラッグして分類・削除できます</p>
         </section>
       )}
 
@@ -1727,24 +1663,26 @@ export function BookLibrary() {
             <h2 id="shelf-title">わたしの本棚</h2>
           </div>
           <div className="shelf-actions">
-            <p>長押しで並べ替え・分類・削除</p>
-            <button
-              className="classification-toggle"
-              type="button"
-              aria-expanded={classificationPanelOpen}
-              onClick={() => {
-                setClassificationPanelOpen((current) => !current);
-                setClassificationMessage("");
-              }}
-              disabled={books.length === 0}
-            >
-              {bookViewMode === "shelf"
-                ? classificationPanelOpen ? "削除盤を閉じる" : "削除盤を表示する"
-                : classificationPanelOpen ? "分類盤を閉じる" : "分類盤を表示する"}
-            </button>
+            <p>ドラッグで並び替え・分類・削除（タッチは長押し）</p>
+            {bookViewMode === "shelf" && (
+              <div
+                className={deleteDropActive ? "shelf-trash-target is-drop-active" : "shelf-trash-target"}
+                data-book-drop="delete"
+                data-book-drop-container
+                aria-label="ここへ本をドロップして削除"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M4 7h16M9 7V4h6v3m-9 0 1 13h10l1-13M10 11v5m4-5v5" />
+                </svg>
+                <span>{deleteDropActive ? "ここで離して削除" : "削除"}</span>
+              </div>
+            )}
           </div>
         </div>
 
+        {classificationMessage && (
+          <p className="classification-message" role="status">{classificationMessage}</p>
+        )}
         {error && <p className="error-message" role="alert">{error}</p>}
         {loading ? (
           <div className="loading" aria-live="polite">本棚をひらいています…</div>
@@ -1756,7 +1694,7 @@ export function BookLibrary() {
             <button type="button" onClick={openAddDialog}>表紙を撮影する</button>
           </div>
         ) : bookViewMode === "shelf" ? (
-          <div className="bookshelf-categories">
+          <div className="bookshelf-categories" data-book-drop-container>
             {shelfCategoryOrder.map((category) => {
               const categoryOption = bookCategories.find((item) => item.id === category);
               const categoryBooks = books.filter(
@@ -1793,72 +1731,17 @@ export function BookLibrary() {
         ) : visibleBooks.length === 0 ? (
           <div className="category-empty">
             <h3>この分類には、まだ本がありません</h3>
-            <p>ほかの分類をダイヤルで表示し、表紙を長押しして分類してください。</p>
+            <p>上の分類をタップして表示を切り替え、本をドラッグして分類してください。</p>
           </div>
         ) : (
           <div className="book-grid">{visibleBooks.map(renderBookCard)}</div>
         )}
-        {selectedBookId && !draggingBookId && !classificationPanelOpen && (
+        {selectedBookId && !draggingBookId && (
           <p className="book-selection-hint" role="status">
             つかみました。もう一度動かすと並べ替え・分類・削除できます。空いている場所をタップすると解除します。
           </p>
         )}
       </section>
-
-      {classificationPanelOpen && books.length > 0 && (
-        <aside
-          className={[
-            "classification-tray",
-            draggingBookId ? "is-dragging" : "",
-            bookViewMode === "shelf" ? "is-delete-only" : "",
-          ].filter(Boolean).join(" ")}
-          aria-label="本の分類先"
-        >
-          <div className="classification-tray-heading">
-            <div>
-              <strong>{bookViewMode === "shelf" ? "削除盤" : "分類盤"}</strong>
-              <small>
-                {bookViewMode === "shelf" ? "本を長押しして削除" : "本を長押しして移動"}
-              </small>
-            </div>
-            <button
-              type="button"
-              aria-label="分類盤を閉じる"
-              onClick={() => setClassificationPanelOpen(false)}
-              disabled={Boolean(draggingBookId)}
-            >
-              ×
-            </button>
-          </div>
-          <div className="category-drop-grid">
-            {bookViewMode === "dial" && bookCategories.map((category) => (
-              <button
-                className={categoryDropActive === category.id ? "category-drop-target is-active" : "category-drop-target"}
-                type="button"
-                key={category.id}
-                data-book-drop="category"
-                data-category-drop={category.id}
-                disabled={!draggingBookId}
-              >
-                <span aria-hidden="true" />
-                {category.dropLabel}
-              </button>
-            ))}
-            <button
-              className={deleteDropActive ? "delete-drop-zone is-active" : "delete-drop-zone"}
-              type="button"
-              data-book-drop="delete"
-              disabled={!draggingBookId}
-            >
-              <span aria-hidden="true">×</span>
-              {deleteDropActive ? "ここで離して削除" : "削除"}
-            </button>
-          </div>
-          {classificationMessage && (
-            <p className="classification-message" role="status">{classificationMessage}</p>
-          )}
-        </aside>
-      )}
 
       {draggingBookId && dragPosition && (() => {
         const draggedBook = books.find((book) => book.id === draggingBookId);
@@ -1906,10 +1789,10 @@ export function BookLibrary() {
 
           <section className="settings-section" aria-labelledby="view-mode-title">
             <h3 id="view-mode-title">本の表示方法</h3>
-            <p>分類を切り替えるダイヤル表示と、すべての分類を見渡せる棚一覧表示を選べます。</p>
+            <p>分類を1つずつ表示する分類表示と、すべての分類を見渡せる棚一覧表示を選べます。</p>
             <fieldset className="view-mode-options">
               <legend className="visually-hidden">本の表示方法</legend>
-              <label htmlFor="book-view-mode-dial" aria-label="ダイヤル表示">
+              <label htmlFor="book-view-mode-dial" aria-label="分類表示">
                 <input
                   id="book-view-mode-dial"
                   type="radio"
@@ -1918,7 +1801,7 @@ export function BookLibrary() {
                   checked={bookViewMode === "dial"}
                   onChange={() => selectBookViewMode("dial")}
                 />
-                <span><strong>ダイヤル表示</strong><small>分類を1つずつ表示</small></span>
+                <span><strong>分類表示</strong><small>分類を1つずつ表示</small></span>
               </label>
               <label htmlFor="book-view-mode-shelf" aria-label="棚一覧表示">
                 <input
