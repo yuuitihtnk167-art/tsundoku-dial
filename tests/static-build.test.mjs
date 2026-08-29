@@ -94,6 +94,8 @@ test("GitHub Pages用の静的アプリを生成する", async () => {
   assert.doesNotMatch(styles, /\.dial-channel-window/);
   assert.doesNotMatch(styles, /\.classification-tray/);
   assert.match(styles, /\.category-zone-panel/);
+  assert.match(styles, /height: clamp\(420px, 70svh, 560px\)/);
+  assert.match(styles, /grid-template-rows: repeat\(3, 1fr\)/);
   assert.match(styles, /\.category-delete-zone/);
   assert.match(styles, /\.shelf-trash-target/);
   assert.match(app, /data-book-id=\{book\.id\}/);
@@ -157,6 +159,6 @@ test("GitHub Pages用の静的アプリを生成する", async () => {
     parsedManifest.icons.map(({ sizes }) => sizes),
     ["192x192", "512x512"],
   );
-  assert.match(serviceWorker, /tsundoku-dial-v30/);
+  assert.match(serviceWorker, /tsundoku-dial-v31/);
   assert.match(serviceWorker, /caches\.delete/);
 });
