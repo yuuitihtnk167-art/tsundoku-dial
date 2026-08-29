@@ -284,10 +284,11 @@ button { color: inherit; }
   .category-console { width: calc(100% - 20px); margin: 16px auto 24px; padding: 17px 9px 20px; border-width: 5px; border-radius: 17px; }
   .console-nameplate { padding: 8px 12px; }
   .console-nameplate h1 { font-size: 19px; }
-  .category-zone-panel { margin-top: 16px; border-width: 2px; }
-  .category-zone { min-height: 76px; padding: 9px 6px; font-size: 12px; }
-  .category-zone small { font-size: 10px; }
-  .category-delete-zone { min-height: 58px; }
+  .category-zone-panel { grid-template-rows: repeat(3, 1fr); height: clamp(420px, 70svh, 560px); margin-top: 16px; border-width: 2px; }
+  .category-zone { min-height: 0; padding: 14px 8px; font-size: 18px; }
+  .category-zone small { font-size: 13px; }
+  .category-delete-zone { min-height: 0; font-size: 18px; }
+  .category-delete-zone > span { width: 36px; height: 36px; font-size: 24px; }
   .category-counter { margin-top: 40px; padding: 7px 12px; font-size: 13px; }
   .category-counter strong { font-size: 16px; }
   .shelf { border-radius: 22px 22px 0 0; padding: 42px 16px 120px; }
