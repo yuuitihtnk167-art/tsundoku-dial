@@ -77,6 +77,14 @@ type BookPointerStart = {
   currentY: number;
 };
 
+type CategoryRegistrationPointerStart = {
+  pointerId: number;
+  category: BookCategory;
+  source: HTMLElement;
+  startX: number;
+  startY: number;
+};
+
 type BookCategoryOption = {
   id: BookCategory;
   label: string;
@@ -107,6 +115,8 @@ const shelfCategoryOrder: BookCategory[] = [
 ];
 const bookViewModeStorageKey = "tsundoku-dial-book-view-mode";
 const bookDisplayDensityStorageKey = "tsundoku-dial-book-display-density";
+const categoryRegistrationLongPressDelay = 300;
+const categoryRegistrationMoveThreshold = 10;
 
 function getInitialBookViewMode(): BookViewMode {
   try {
@@ -365,6 +375,7 @@ export function BookLibrary() {
   const [titleSharing, setTitleSharing] = useState(false);
   const [pastingCover, setPastingCover] = useState(false);
   const [activeCategory, setActiveCategory] = useState<BookCategory>("unclassified");
+  const [registrationCategory, setRegistrationCategory] = useState<BookCategory>("unclassified");
   const [bookViewMode, setBookViewMode] = useState<BookViewMode>(getInitialBookViewMode);
   const [bookDisplayDensity, setBookDisplayDensity] = useState<BookDisplayDensity>(getInitialBookDisplayDensity);
   const [categoryDropActive, setCategoryDropActive] = useState<BookCategory | null>(null);
@@ -400,6 +411,9 @@ export function BookLibrary() {
   const cropDragRef = useRef<CropDrag | null>(null);
   const booksRef = useRef<Book[]>([]);
   const longPressTimerRef = useRef<number | null>(null);
+  const categoryRegistrationTimerRef = useRef<number | null>(null);
+  const categoryRegistrationPointerRef = useRef<CategoryRegistrationPointerStart | null>(null);
+  const suppressCategoryClickRef = useRef(false);
   const bookAutoScrollFrameRef = useRef<number | null>(null);
   const bookPointerStartRef = useRef<BookPointerStart | null>(null);
   const selectedBookIdRef = useRef<string | null>(null);
@@ -420,6 +434,8 @@ export function BookLibrary() {
       : null;
   const activeCategoryOption =
     bookCategories.find((category) => category.id === activeCategory) ?? bookCategories[0];
+  const registrationCategoryOption =
+    bookCategories.find((category) => category.id === registrationCategory) ?? bookCategories[0];
   const visibleBooks = books.filter((book) => getBookCategory(book) === activeCategory);
   const duplicateCandidates: DuplicateCandidate[] = books.flatMap((book) => {
     if (book.id === editingBookId) return [];
@@ -557,6 +573,9 @@ export function BookLibrary() {
     if (longPressTimerRef.current !== null) {
       window.clearTimeout(longPressTimerRef.current);
     }
+    if (categoryRegistrationTimerRef.current !== null) {
+      window.clearTimeout(categoryRegistrationTimerRef.current);
+    }
     if (bookAutoScrollFrameRef.current !== null) {
       window.cancelAnimationFrame(bookAutoScrollFrameRef.current);
     }
@@ -664,9 +683,10 @@ export function BookLibrary() {
     };
   }, [crop, cropKey, photo]);
 
-  function openAddDialog() {
+  function openAddDialog(category: BookCategory) {
     stopCamera();
     setEditingBookId(null);
+    setRegistrationCategory(category);
     setPhoto(null);
     setPhotoUrl((current) => {
       if (current) URL.revokeObjectURL(current);
@@ -880,6 +900,68 @@ export function BookLibrary() {
     setActiveCategory(category);
     setClassificationMessage("");
     navigator.vibrate?.(12);
+  }
+
+  function clearCategoryRegistrationTimer() {
+    if (categoryRegistrationTimerRef.current === null) return;
+    window.clearTimeout(categoryRegistrationTimerRef.current);
+    categoryRegistrationTimerRef.current = null;
+  }
+
+  function startCategoryRegistrationPress(
+    event: ReactPointerEvent<HTMLElement>,
+    category: BookCategory,
+  ) {
+    if (!event.isPrimary || (event.pointerType === "mouse" && event.button !== 0)) return;
+    clearCategoryRegistrationTimer();
+    categoryRegistrationPointerRef.current = {
+      pointerId: event.pointerId,
+      category,
+      source: event.currentTarget,
+      startX: event.clientX,
+      startY: event.clientY,
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+    categoryRegistrationTimerRef.current = window.setTimeout(() => {
+      const pointer = categoryRegistrationPointerRef.current;
+      if (!pointer || pointer.category !== category) return;
+      categoryRegistrationPointerRef.current = null;
+      categoryRegistrationTimerRef.current = null;
+      suppressCategoryClickRef.current = true;
+      window.setTimeout(() => {
+        suppressCategoryClickRef.current = false;
+      }, 500);
+      if (pointer.source.hasPointerCapture(pointer.pointerId)) {
+        pointer.source.releasePointerCapture(pointer.pointerId);
+      }
+      if (bookViewMode === "dial") selectCategory(category);
+      openAddDialog(category);
+      navigator.vibrate?.(25);
+    }, categoryRegistrationLongPressDelay);
+  }
+
+  function moveCategoryRegistrationPress(event: ReactPointerEvent<HTMLElement>) {
+    const pointer = categoryRegistrationPointerRef.current;
+    if (!pointer || pointer.pointerId !== event.pointerId) return;
+    const distance = Math.hypot(
+      event.clientX - pointer.startX,
+      event.clientY - pointer.startY,
+    );
+    if (distance <= categoryRegistrationMoveThreshold) return;
+    clearCategoryRegistrationTimer();
+    categoryRegistrationPointerRef.current = null;
+  }
+
+  function finishCategoryRegistrationPress(event: ReactPointerEvent<HTMLElement>) {
+    const pointer = categoryRegistrationPointerRef.current;
+    if (!pointer || pointer.pointerId !== event.pointerId) return;
+    clearCategoryRegistrationTimer();
+    categoryRegistrationPointerRef.current = null;
+  }
+
+  function handleCategoryClick(category: BookCategory) {
+    if (suppressCategoryClickRef.current) return;
+    selectCategory(category);
   }
 
   function clearLongPressTimer() {
@@ -1524,7 +1606,7 @@ export function BookLibrary() {
       };
       const storedBook = editingBookId
         ? await updateBook({ id: editingBookId, ...values })
-        : await addBook(values);
+        : await addBook({ ...values, category: registrationCategory });
       const coverUrl = URL.createObjectURL(storedBook.cover);
       coverUrlsRef.current.push(coverUrl);
       const nextBook = { ...storedBook, coverUrl };
@@ -1680,9 +1762,6 @@ export function BookLibrary() {
           >
             <span aria-hidden="true">⚙</span> 設定
           </button>
-          <button className="add-button" type="button" onClick={openAddDialog}>
-            <span aria-hidden="true">＋</span> 本を登録する
-          </button>
         </div>
       </header>
 
@@ -1706,7 +1785,13 @@ export function BookLibrary() {
                 data-book-drop="category"
                 data-category-drop={category.id}
                 aria-pressed={activeCategory === category.id}
-                onClick={() => selectCategory(category.id)}
+                onClick={() => handleCategoryClick(category.id)}
+                onContextMenu={(event) => event.preventDefault()}
+                onPointerDown={(event) => startCategoryRegistrationPress(event, category.id)}
+                onPointerMove={moveCategoryRegistrationPress}
+                onPointerUp={finishCategoryRegistrationPress}
+                onPointerCancel={finishCategoryRegistrationPress}
+                onLostPointerCapture={finishCategoryRegistrationPress}
               >
                 <span>{category.label}</span>
                 <small>{books.filter((book) => getBookCategory(book) === category.id).length}冊</small>
@@ -1727,7 +1812,7 @@ export function BookLibrary() {
             <strong>{visibleBooks.length}冊</strong>
             <span aria-hidden="true" />
           </p>
-          <p className="category-panel-help">分類をタップして表示。本をドラッグして分類・削除できます</p>
+          <p className="category-panel-help">分類をタップして表示、長押しでその分類に本を登録。本をドラッグして分類・削除できます</p>
         </section>
       )}
 
@@ -1738,7 +1823,7 @@ export function BookLibrary() {
             <h2 id="shelf-title">わたしの本棚</h2>
           </div>
           <div className="shelf-actions">
-            <p>ドラッグで並び替え・分類・削除（タッチは長押し）</p>
+            <p>{bookViewMode === "shelf" ? "分類名を長押しして本を登録。ドラッグで並び替え・分類・削除" : "ドラッグで並び替え・分類・削除（タッチは長押し）"}</p>
             {bookViewMode === "shelf" && (
               <div
                 className={deleteDropActive ? "shelf-trash-target is-drop-active" : "shelf-trash-target"}
@@ -1761,13 +1846,6 @@ export function BookLibrary() {
         {error && <p className="error-message" role="alert">{error}</p>}
         {loading ? (
           <div className="loading" aria-live="polite">本棚をひらいています…</div>
-        ) : books.length === 0 ? (
-          <div className="empty-state">
-            <div className="empty-books" aria-hidden="true"><i /><i /><i /></div>
-            <h3>最初の一冊を積んでみましょう</h3>
-            <p>本の表紙を撮ると、ここにあなたの積読が並びます。</p>
-            <button type="button" onClick={openAddDialog}>表紙を撮影する</button>
-          </div>
         ) : bookViewMode === "shelf" ? (
           <div className="bookshelf-categories" data-book-drop-container>
             {shelfCategoryOrder.map((category) => {
@@ -1785,7 +1863,15 @@ export function BookLibrary() {
                   aria-labelledby={`bookshelf-category-${category}`}
                 >
                   <div className="bookshelf-category-heading">
-                    <h3 id={`bookshelf-category-${category}`}>
+                    <h3
+                      id={`bookshelf-category-${category}`}
+                      onContextMenu={(event) => event.preventDefault()}
+                      onPointerDown={(event) => startCategoryRegistrationPress(event, category)}
+                      onPointerMove={moveCategoryRegistrationPress}
+                      onPointerUp={finishCategoryRegistrationPress}
+                      onPointerCancel={finishCategoryRegistrationPress}
+                      onLostPointerCapture={finishCategoryRegistrationPress}
+                    >
                       {categoryOption?.label ?? category}
                     </h3>
                     <span>{categoryBooks.length}冊</span>
@@ -1802,6 +1888,12 @@ export function BookLibrary() {
                 </section>
               );
             })}
+          </div>
+        ) : books.length === 0 ? (
+          <div className="empty-state">
+            <div className="empty-books" aria-hidden="true"><i /><i /><i /></div>
+            <h3>最初の一冊を積んでみましょう</h3>
+            <p>上の分類を長押しして、本の登録を始めてください。</p>
           </div>
         ) : visibleBooks.length === 0 ? (
           <div className="category-empty">
@@ -1984,6 +2076,9 @@ export function BookLibrary() {
             <div>
               <p className="eyebrow">{editingBookId ? "EDIT COVER" : "NEW BOOK"}</p>
               {editingBookId && <h2>修正</h2>}
+              {!editingBookId && (
+                <p className="registration-category">登録先：{registrationCategoryOption.label}</p>
+              )}
             </div>
             <button className="close-button" type="button" onClick={closeAddDialog} aria-label="閉じる">×</button>
           </div>

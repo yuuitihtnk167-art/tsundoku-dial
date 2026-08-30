@@ -65,7 +65,13 @@ test("GitHub Pages用の静的アプリを生成する", async () => {
   assert.doesNotMatch(app, /finishDialTurn/);
   assert.doesNotMatch(app, /dial-channel-window/);
   assert.match(app, /className="category-zone-panel" data-book-drop-container/);
-  assert.match(app, /onClick=\{\(\) => selectCategory\(category\.id\)\}/);
+  assert.match(app, /onClick=\{\(\) => handleCategoryClick\(category\.id\)\}/);
+  assert.match(app, /categoryRegistrationLongPressDelay = 300/);
+  assert.match(app, /categoryRegistrationMoveThreshold = 10/);
+  assert.match(app, /startCategoryRegistrationPress/);
+  assert.match(app, /moveCategoryRegistrationPress/);
+  assert.match(app, /登録先：\{registrationCategoryOption\.label\}/);
+  assert.match(app, /長押しでその分類に本を登録/);
   assert.match(app, /className=\{deleteDropActive \? "category-delete-zone is-drop-active"/);
   assert.match(app, /今読んでいる/);
   assert.match(app, /もう一度読みたい/);
@@ -91,7 +97,6 @@ test("GitHub Pages用の静的アプリを生成する", async () => {
   assert.doesNotMatch(app, /classification-tray/);
   assert.doesNotMatch(app, /classificationPanelOpen/);
   assert.match(app, /id="category-panel-title">本の分類/);
-  assert.match(app, /タップして表示。本をドラッグして分類・削除できます/);
   assert.doesNotMatch(styles, /\.dial-knob/);
   assert.doesNotMatch(styles, /\.dial-channel-window/);
   assert.doesNotMatch(styles, /\.classification-tray/);
@@ -109,8 +114,9 @@ test("GitHub Pages用の静的アプリを生成する", async () => {
   assert.match(app, /削除をキャンセルしました/);
   assert.doesNotMatch(app, /accept="image\/\*"|標準カメラ|fileInputRef|choosePhoto/);
   assert.match(app, /className="settings-button"/);
-  assert.match(styles, /\.add-button, \.settings-button \{ border: 2px solid var\(--brass\)/);
-  assert.match(styles, /\.add-button:active, \.settings-button:active/);
+  assert.doesNotMatch(app, /className="add-button"/);
+  assert.match(styles, /\.settings-button \{ border: 2px solid var\(--brass\)/);
+  assert.doesNotMatch(styles, /\.add-button/);
   assert.match(app, /type BookViewMode = "dial" \| "shelf"/);
   assert.match(app, /type BookDisplayDensity = "covers" \| "compact"/);
   assert.match(app, /tsundoku-dial-book-view-mode/);
@@ -154,7 +160,7 @@ test("GitHub Pages用の静的アプリを生成する", async () => {
   assert.match(storage, /export async function updateBook/);
   assert.match(storage, /sortOrder\?: number/);
   assert.match(storage, /category\?: BookCategory/);
-  assert.match(storage, /category: "unclassified"/);
+  assert.match(storage, /category: input\.category/);
   assert.match(storage, /export async function updateBookCategory/);
   assert.match(storage, /export async function saveBookOrder/);
   assert.match(storage, /export async function deleteBook/);
@@ -172,6 +178,9 @@ test("GitHub Pages用の静的アプリを生成する", async () => {
     parsedManifest.icons.map(({ sizes }) => sizes),
     ["192x192", "512x512"],
   );
-  assert.match(serviceWorker, /tsundoku-dial-v34/);
+  const shelfViewIndex = app.indexOf(') : bookViewMode === "shelf" ? (');
+  const emptyLibraryIndex = app.indexOf(') : books.length === 0 ? (');
+  assert.ok(shelfViewIndex >= 0 && shelfViewIndex < emptyLibraryIndex);
+  assert.match(serviceWorker, /tsundoku-dial-v35/);
   assert.match(serviceWorker, /caches\.delete/);
 });

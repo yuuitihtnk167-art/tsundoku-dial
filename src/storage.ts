@@ -69,7 +69,9 @@ export async function getBooks() {
 }
 
 export async function addBook(
-  input: Pick<StoredBook, "title" | "author" | "publisher" | "notes" | "isbn" | "cover" | "original" | "crop">,
+  input: Pick<StoredBook, "title" | "author" | "publisher" | "notes" | "isbn" | "cover" | "original" | "crop"> & {
+    category: BookCategory;
+  },
 ) {
   const database = await openDatabase();
   try {
@@ -92,7 +94,7 @@ export async function addBook(
       isbn: input.isbn,
       createdAt: new Date().toISOString(),
       sortOrder: highestOrder + 1,
-      category: "unclassified",
+      category: input.category,
       cover: input.cover,
       original: input.original,
       crop: input.crop,
