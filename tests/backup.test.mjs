@@ -15,6 +15,8 @@ function sampleBook() {
   return {
     id: "book-1",
     title: "バックアップする本",
+    author: "著者名",
+    publisher: "出版社名",
     notes: "メモ",
     isbn: "9784101010014",
     createdAt: "2026-08-16T01:02:03.000Z",
@@ -41,6 +43,21 @@ test("画像を含む全書籍データをバックアップして復元でき�
   assert.deepEqual(new Uint8Array(await parsed.books[0].original.arrayBuffer()), Uint8Array.from([5, 6, 7, 8, 9]));
 });
 
+test("著者名と出版社名がない旧形式のバックアップも復元できる", async () => {
+  const { createCompleteBackup, parseCompleteBackup } = await loadBackupModule();
+  const backup = await createCompleteBackup([sampleBook()]);
+  const document = JSON.parse(await backup.text());
+  document.version = 1;
+  delete document.books[0].author;
+  delete document.books[0].publisher;
+
+  const parsed = await parseCompleteBackup(
+    new Blob([JSON.stringify(document)], { type: "application/json" }),
+  );
+  assert.equal(parsed.books[0].author, undefined);
+  assert.equal(parsed.books[0].publisher, undefined);
+});
+
 test("破損した画像を復元前に拒否する", async () => {
   const { createCompleteBackup, parseCompleteBackup } = await loadBackupModule();
   const backup = await createCompleteBackup([sampleBook()]);
@@ -57,6 +74,13 @@ test("異なる形式と重複した書籍IDを拒否する", async () => {
   const { createCompleteBackup, parseCompleteBackup } = await loadBackupModule();
   await assert.rejects(
     parseCompleteBackup(new Blob([JSON.stringify({ format: "other", version: 1 })])),
+    /対応するバックアップファイルではありません/,
+  );
+  await assert.rejects(
+    parseCompleteBackup(new Blob([JSON.stringify({
+      format: "tsundoku-dial-backup",
+      version: 3,
+    })])),
     /対応するバックアップファイルではありません/,
   );
 

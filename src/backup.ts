@@ -2,7 +2,7 @@ import type { Crop } from "./image";
 import type { BookCategory, StoredBook } from "./storage";
 
 const BACKUP_FORMAT = "tsundoku-dial-backup";
-const BACKUP_VERSION = 1;
+const BACKUP_VERSION = 2;
 const MAX_BOOKS = 10_000;
 const MAX_BACKUP_BYTES = 512 * 1024 * 1024;
 const categories: BookCategory[] = ["unclassified", "reading", "reread", "owned", "read"];
@@ -82,6 +82,8 @@ export async function createCompleteBackup(books: StoredBook[], createdAt = new 
     backupBooks.push({
       id: book.id,
       title: book.title,
+      author: book.author,
+      publisher: book.publisher,
       notes: book.notes,
       isbn: book.isbn,
       createdAt: book.createdAt,
@@ -152,6 +154,8 @@ async function parseBook(value: unknown): Promise<StoredBook> {
   const id = requireString(value.id, "書籍ID", 200);
   if (!id) throw new Error("書籍IDが正しくありません。");
   const title = requireString(value.title, "タイトル", 160);
+  const author = value.author === undefined ? undefined : requireString(value.author, "著者名", 240);
+  const publisher = value.publisher === undefined ? undefined : requireString(value.publisher, "出版社名", 160);
   const notes = requireString(value.notes, "メモ", 1_000);
   const createdAt = requireString(value.createdAt, "登録日時", 50);
   if (!Number.isFinite(Date.parse(createdAt))) throw new Error("登録日時が正しくありません。");
@@ -167,6 +171,8 @@ async function parseBook(value: unknown): Promise<StoredBook> {
   return {
     id,
     title,
+    author,
+    publisher,
     notes,
     isbn: value.isbn as string | null,
     createdAt,
@@ -189,7 +195,11 @@ export async function parseCompleteBackup(file: Blob): Promise<ParsedBackup> {
   } catch {
     throw new Error("バックアップファイルを読み取れませんでした。");
   }
-  if (!isRecord(value) || value.format !== BACKUP_FORMAT || value.version !== BACKUP_VERSION) {
+  if (
+    !isRecord(value) ||
+    value.format !== BACKUP_FORMAT ||
+    (value.version !== 1 && value.version !== BACKUP_VERSION)
+  ) {
     throw new Error("このアプリの対応するバックアップファイルではありません。");
   }
   const createdAt = requireString(value.createdAt, "バックアップ作成日時", 50);
