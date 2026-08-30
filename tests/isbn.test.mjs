@@ -28,6 +28,23 @@ test("タイトルの完全一致と類似を判定する", async () => {
 
   assert.equal(getTitleMatch(" 吾輩は猫である ", "吾輩は猫である"), "exact");
   assert.equal(getTitleMatch("吾輩は猫である", "吾輩は猫であゐ"), "similar");
+  assert.equal(
+    getTitleMatch(
+      "科学的根拠に基づく最高の勉強法 = Maximizing Learning:The Best Evidence-Based Techniques",
+      "科学的根拠に基づく最高の勉強法",
+    ),
+    "similar",
+  );
+  assert.equal(
+    getTitleMatch(
+      "科学的根拠に基づく最高の勉強法",
+      "科学的根拠に基づく最高の勉強法 = Maximizing Learning:The Best Evidence-Based Techniques",
+    ),
+    "similar",
+  );
+  assert.equal(getTitleMatch("最高の勉強法", "科学的根拠に基づく最高の勉強法"), "similar");
+  assert.equal(getTitleMatch("吾輩は猫である", "猫と小判"), null);
+  assert.equal(getTitleMatch("新版最高の勉強法", "最高の勉強法実践"), null);
   assert.equal(getTitleMatch("本", "ほん"), null);
   assert.equal(getTitleMatch("タイトル未設定", "タイトル未設定"), null);
 });
@@ -55,5 +72,5 @@ test("ISBN読取・保存・重複確認がアプリに組み込まれている"
   assert.match(storage, /isbn: input\.isbn/);
   assert.match(styles, /\.isbn-panel/);
   assert.match(styles, /\.duplicate-warning/);
-  assert.match(serviceWorker, /tsundoku-dial-v33/);
+  assert.match(serviceWorker, /tsundoku-dial-v34/);
 });

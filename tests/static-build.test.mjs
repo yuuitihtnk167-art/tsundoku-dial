@@ -172,6 +172,6 @@ test("GitHub Pages用の静的アプリを生成する", async () => {
     parsedManifest.icons.map(({ sizes }) => sizes),
     ["192x192", "512x512"],
   );
-  assert.match(serviceWorker, /tsundoku-dial-v33/);
+  assert.match(serviceWorker, /tsundoku-dial-v34/);
   assert.match(serviceWorker, /caches\.delete/);
 });

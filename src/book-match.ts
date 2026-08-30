@@ -53,6 +53,11 @@ export function getTitleMatch(left: string, right: string): TitleMatch | null {
     return null;
   }
   if (normalizedLeft === normalizedRight) return "exact";
+  const shorterTitle =
+    normalizedLeft.length <= normalizedRight.length ? normalizedLeft : normalizedRight;
+  const longerTitle =
+    normalizedLeft.length > normalizedRight.length ? normalizedLeft : normalizedRight;
+  if (shorterTitle.length >= 6 && longerTitle.includes(shorterTitle)) return "similar";
   if (Math.min(normalizedLeft.length, normalizedRight.length) < 4) return null;
   return titleSimilarity(normalizedLeft, normalizedRight) >= 0.78 ? "similar" : null;
 }
