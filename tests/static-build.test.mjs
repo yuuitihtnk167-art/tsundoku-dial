@@ -29,7 +29,7 @@ test("GitHub Pages用の静的アプリを生成する", async () => {
   assert.match(app, /minimumCropSize = 8/);
   assert.match(app, /navigator\.share/);
   assert.match(app, /createTitleAnalysisPrompt/);
-  assert.match(app, /正式タイトル・本の要約・表紙画像/);
+  assert.match(app, /正式タイトル・著者名・出版社名・本の要約・表紙画像/);
   assert.match(app, /navigator\.clipboard\.read\(\)/);
   assert.match(app, /表紙画像を貼り付ける/);
   assert.match(app, /navigator\.canShare/);
@@ -39,6 +39,8 @@ test("GitHub Pages用の静的アプリを生成する", async () => {
   assert.match(app, /分析用の文章をコピー/);
   assert.match(app, /ChatGPTに貼り付けてください。/);
   assert.match(app, /出版社、公式書籍ページ、著者情報などを優先/);
+  assert.match(app, /本のタイトル、著者名、出版社名を、それぞれ独立したコードブロック/);
+  assert.match(app, /本の正式タイトル、著者名、出版社名を、それぞれ独立したコードブロック/);
   assert.match(app, /200～300文字程度を目安にする/);
   assert.match(app, /text: bookAnalysisPrompt/);
   assert.match(app, /}, 300\)/);
@@ -138,6 +140,8 @@ test("GitHub Pages用の静的アプリを生成する", async () => {
   assert.match(storage, /indexedDB\.open/);
   assert.match(storage, /createObjectStore\(BOOK_STORE/);
   assert.match(storage, /original\?: Blob/);
+  assert.match(storage, /author\?: string/);
+  assert.match(storage, /publisher\?: string/);
   assert.match(storage, /export async function updateBook/);
   assert.match(storage, /sortOrder\?: number/);
   assert.match(storage, /category\?: BookCategory/);
@@ -159,6 +163,6 @@ test("GitHub Pages用の静的アプリを生成する", async () => {
     parsedManifest.icons.map(({ sizes }) => sizes),
     ["192x192", "512x512"],
   );
-  assert.match(serviceWorker, /tsundoku-dial-v31/);
+  assert.match(serviceWorker, /tsundoku-dial-v32/);
   assert.match(serviceWorker, /caches\.delete/);
 });

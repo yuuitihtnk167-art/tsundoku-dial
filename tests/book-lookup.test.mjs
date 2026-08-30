@@ -14,14 +14,21 @@ async function loadBookLookup() {
   return import(`data:text/javascript;base64,${Buffer.from(compiled).toString("base64")}`);
 }
 
-test("openBDのタイトルと公開書影をISBNから取得する", async () => {
+test("openBDの書籍情報と公開書影をISBNから取得する", async () => {
   const originalFetch = globalThis.fetch;
   const requestedUrls = [];
   globalThis.fetch = async (input) => {
     const url = String(input);
     requestedUrls.push(url);
     if (url.startsWith("https://api.openbd.jp/")) {
-      return new Response(JSON.stringify([{ summary: { title: "吾輩は猫である", cover: "" } }]), {
+      return new Response(JSON.stringify([{
+        summary: {
+          title: "吾輩は猫である",
+          author: "夏目,漱石,1867-1916",
+          publisher: "新潮社",
+          cover: "",
+        },
+      }]), {
         headers: { "content-type": "application/json" },
       });
     }
@@ -34,6 +41,8 @@ test("openBDのタイトルと公開書影をISBNから取得する", async () =
     const { lookupBookByIsbn } = await loadBookLookup();
     const result = await lookupBookByIsbn("9784101010014");
     assert.equal(result.title, "吾輩は猫である");
+    assert.equal(result.author, "夏目,漱石,1867-1916");
+    assert.equal(result.publisher, "新潮社");
     assert.equal(result.cover?.type, "image/jpeg");
     assert.match(requestedUrls[1], /covers\.openlibrary\.org\/b\/isbn\/9784101010014-L\.jpg/);
   } finally {
@@ -47,7 +56,12 @@ test("書誌情報と書影がなくても空の結果を返す", async () => {
 
   try {
     const { lookupBookByIsbn } = await loadBookLookup();
-    assert.deepEqual(await lookupBookByIsbn("9780000000002"), { title: "", cover: null });
+    assert.deepEqual(await lookupBookByIsbn("9780000000002"), {
+      title: "",
+      author: "",
+      publisher: "",
+      cover: null,
+    });
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -63,6 +77,10 @@ test("ISBN先行登録と最上部の重複確認UIが組み込まれている",
   assert.match(app, /!cameraActive && addDialogOpen/);
   assert.doesNotMatch(app, /photo && addDialogOpen && <IsbnScanner/);
   assert.match(app, /lookupBookByIsbn\(nextIsbn, controller\.signal\)/);
+  assert.match(app, /setAuthor\(result\.author\)/);
+  assert.match(app, /setPublisher\(result\.publisher\)/);
+  assert.match(app, />著者名 <small>任意<\/small>/);
+  assert.match(app, />出版社名 <small>任意<\/small>/);
   assert.match(app, />やめる<\/button>/);
   assert.match(app, /続ける/);
   assert.match(app, /ガイド付きで撮り直す/);
@@ -71,7 +89,8 @@ test("ISBN先行登録と最上部の重複確認UIが組み込まれている",
   assert.match(lookup, /api\.openbd\.jp\/v1\/get/);
   assert.match(lookup, /covers\.openlibrary\.org\/b\/isbn/);
   assert.match(lookup, /maximumCoverBytes = 10 \* 1024 \* 1024/);
-  assert.match(lookup, /slice\(0, 160\)/);
+  assert.match(lookup, /summaryText\(summary\?\.author, 240\)/);
+  assert.match(lookup, /summaryText\(summary\?\.publisher, 160\)/);
   assert.match(styles, /\.duplicate-actions/);
   assert.match(styles, /\.book-lookup-message/);
 });

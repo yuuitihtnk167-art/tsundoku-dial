@@ -162,10 +162,18 @@ const bookAnalysisPrompt = [
   "",
   "【出力形式】",
   "",
-  "最初に、本のタイトルだけを独立したコードブロックで出力してください。",
+  "最初に、本のタイトル、著者名、出版社名を、それぞれ独立したコードブロックで出力してください。",
   "",
   "```text",
   "本の正式タイトル",
+  "```",
+  "",
+  "```text",
+  "著者名",
+  "```",
+  "",
+  "```text",
+  "出版社名",
   "```",
   "",
   "その後、読書記録用の本文を別のコードブロックで出力してください。",
@@ -213,10 +221,18 @@ function createTitleAnalysisPrompt(inputTitle: string) {
     "",
     "【出力形式】",
     "",
-    "最初に、本の正式タイトルだけを独立したコードブロックで出力してください。",
+    "最初に、本の正式タイトル、著者名、出版社名を、それぞれ独立したコードブロックで出力してください。",
     "",
     "```text",
     "本の正式タイトル",
+    "```",
+    "",
+    "```text",
+    "著者名",
+    "```",
+    "",
+    "```text",
+    "出版社名",
     "```",
     "",
     "その後、読書記録用の本文を別のコードブロックで出力してください。",
@@ -345,6 +361,8 @@ export function BookLibrary() {
   const [dragPosition, setDragPosition] = useState<{ x: number; y: number } | null>(null);
   const [deleteDropActive, setDeleteDropActive] = useState(false);
   const [title, setTitle] = useState("");
+  const [author, setAuthor] = useState("");
+  const [publisher, setPublisher] = useState("");
   const [notes, setNotes] = useState("");
   const [isbn, setIsbn] = useState<string | null>(null);
   const [duplicateConfirmed, setDuplicateConfirmed] = useState(false);
@@ -362,6 +380,8 @@ export function BookLibrary() {
   const bookLookupAbortRef = useRef<AbortController | null>(null);
   const duplicateWarningRef = useRef<HTMLElement>(null);
   const titleRef = useRef("");
+  const authorRef = useRef("");
+  const publisherRef = useRef("");
   const videoRef = useRef<HTMLVideoElement>(null);
   const cameraStreamRef = useRef<MediaStream | null>(null);
   const cropDragRef = useRef<CropDrag | null>(null);
@@ -420,11 +440,11 @@ export function BookLibrary() {
     bookLookupAbortRef.current = controller;
     const lookupTimeout = window.setTimeout(() => {
       if (bookLookupAbortRef.current !== controller) return;
-      setBookLookupMessage("書籍情報の取得に時間がかかっています。表紙撮影とタイトル入力で続けられます。");
+      setBookLookupMessage("書籍情報の取得に時間がかかっています。表紙撮影と書籍情報の入力で続けられます。");
       controller.abort();
     }, 10_000);
     setLookingUpBook(true);
-    setBookLookupMessage("ISBNからタイトルと表紙を探しています…");
+    setBookLookupMessage("ISBNからタイトル、著者名、出版社名、表紙を探しています…");
     void lookupBookByIsbn(nextIsbn, controller.signal)
       .then(async (result) => {
         if (controller.signal.aborted) return;
@@ -433,6 +453,14 @@ export function BookLibrary() {
           setTitle(result.title);
           setTitlePromptCopied(false);
           setDuplicateConfirmed(false);
+        }
+        if (result.author && !authorRef.current.trim()) {
+          authorRef.current = result.author;
+          setAuthor(result.author);
+        }
+        if (result.publisher && !publisherRef.current.trim()) {
+          publisherRef.current = result.publisher;
+          setPublisher(result.publisher);
         }
 
         let coverApplied = false;
@@ -454,19 +482,20 @@ export function BookLibrary() {
           }
         }
 
-        if (result.title && coverApplied) {
-          setBookLookupMessage("タイトルと表紙を取得しました。");
-        } else if (result.title) {
-          setBookLookupMessage("タイトルを取得しました。表紙はガイド付きで撮影してください。");
+        const bibliographicDataFound = Boolean(result.title || result.author || result.publisher);
+        if (bibliographicDataFound && coverApplied) {
+          setBookLookupMessage("書籍情報と表紙を取得しました。");
+        } else if (bibliographicDataFound) {
+          setBookLookupMessage("書籍情報を取得しました。表紙はガイド付きで撮影してください。");
         } else if (coverApplied) {
-          setBookLookupMessage("表紙を取得しました。タイトルを入力してください。");
+          setBookLookupMessage("表紙を取得しました。書籍情報を入力してください。");
         } else {
-          setBookLookupMessage("情報を取得できませんでした。タイトル入力と表紙撮影をお願いします。");
+          setBookLookupMessage("情報を取得できませんでした。書籍情報の入力と表紙撮影をお願いします。");
         }
       })
       .catch(() => {
         if (!controller.signal.aborted) {
-          setBookLookupMessage("書籍情報を取得できませんでした。タイトル入力と表紙撮影をお願いします。");
+          setBookLookupMessage("書籍情報を取得できませんでした。書籍情報の入力と表紙撮影をお願いします。");
         }
       })
       .finally(() => {
@@ -637,6 +666,10 @@ export function BookLibrary() {
     setTitlePromptCopied(false);
     titleRef.current = "";
     setTitle("");
+    authorRef.current = "";
+    setAuthor("");
+    publisherRef.current = "";
+    setPublisher("");
     setNotes("");
     setIsbn(null);
     setDuplicateConfirmed(false);
@@ -758,6 +791,10 @@ export function BookLibrary() {
     setTitlePromptCopied(false);
     titleRef.current = selectedBook.title;
     setTitle(selectedBook.title);
+    authorRef.current = selectedBook.author ?? "";
+    setAuthor(selectedBook.author ?? "");
+    publisherRef.current = selectedBook.publisher ?? "";
+    setPublisher(selectedBook.publisher ?? "");
     setNotes(selectedBook.notes);
     setIsbn(selectedBook.isbn);
     setDuplicateConfirmed(false);
@@ -1455,6 +1492,8 @@ export function BookLibrary() {
         original: photo,
         crop,
         title: title.trim() || "タイトル未設定",
+        author: author.trim(),
+        publisher: publisher.trim(),
         notes: notes.trim(),
         isbn,
       };
@@ -1819,7 +1858,7 @@ export function BookLibrary() {
 
           <section className="settings-section" aria-labelledby="backup-title">
             <h3 id="backup-title">完全バックアップ</h3>
-            <p>タイトル、メモ、ISBN、分類、並び順、表紙画像、元画像、切り取り範囲を1つのファイルに保存します。</p>
+            <p>タイトル、著者名、出版社名、メモ、ISBN、分類、並び順、表紙画像、元画像、切り取り範囲を1つのファイルに保存します。</p>
             <button
               className="backup-button"
               type="button"
@@ -2060,7 +2099,7 @@ export function BookLibrary() {
               >
                 {titlePromptCopied ? "コピーしました" : "分析用の文章をコピー"}
               </button>
-              <small>入力したタイトルから、正式タイトル・本の要約・表紙画像をChatGPTで調べます。</small>
+              <small>入力したタイトルから、正式タイトル・著者名・出版社名・本の要約・表紙画像をChatGPTで調べます。</small>
               <button
                 className="share-button"
                 type="button"
@@ -2080,6 +2119,14 @@ export function BookLibrary() {
               </button>
               <small>ChatGPTなどでコピーした画像を表紙として読み込みます。</small>
             </div>
+            <label><span>著者名 <small>任意</small></span><input value={author} onChange={(event) => {
+              authorRef.current = event.target.value;
+              setAuthor(event.target.value);
+            }} placeholder="ISBNから自動入力、または手入力" maxLength={240} /></label>
+            <label><span>出版社名 <small>任意</small></span><input value={publisher} onChange={(event) => {
+              publisherRef.current = event.target.value;
+              setPublisher(event.target.value);
+            }} placeholder="ISBNから自動入力、または手入力" maxLength={160} /></label>
             <label><span>メモ <small>任意</small></span><textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="この本を選んだ理由など" maxLength={1000} rows={3} /></label>
           </div>
 
@@ -2102,7 +2149,11 @@ export function BookLibrary() {
             <div className="detail-copy">
               <p className="eyebrow">BOOK DETAIL</p>
               <h2 id="book-detail-title">{selectedBook.title}</h2>
-              <dl><div><dt>積んだ日</dt><dd>{formatDate(selectedBook.createdAt)}</dd></div></dl>
+              <dl>
+                {selectedBook.author && <div><dt>著者名</dt><dd>{selectedBook.author}</dd></div>}
+                {selectedBook.publisher && <div><dt>出版社名</dt><dd>{selectedBook.publisher}</dd></div>}
+                <div><dt>積んだ日</dt><dd>{formatDate(selectedBook.createdAt)}</dd></div>
+              </dl>
               {selectedBook.notes && <p className="book-notes">{selectedBook.notes}</p>}
               <button className="edit-cover-button" type="button" onClick={editSelectedCover}>
                 修正

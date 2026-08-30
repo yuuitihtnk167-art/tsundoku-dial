@@ -1,11 +1,15 @@
 export type BookLookupResult = {
   title: string;
+  author: string;
+  publisher: string;
   cover: Blob | null;
 };
 
 type OpenBdResponse = Array<{
   summary?: {
     title?: unknown;
+    author?: unknown;
+    publisher?: unknown;
     cover?: unknown;
   };
 } | null>;
@@ -13,6 +17,10 @@ type OpenBdResponse = Array<{
 const openBdEndpoint = "https://api.openbd.jp/v1/get";
 const openLibraryCoverEndpoint = "https://covers.openlibrary.org/b/isbn";
 const maximumCoverBytes = 10 * 1024 * 1024;
+
+function summaryText(value: unknown, maximumLength: number) {
+  return typeof value === "string" ? value.trim().slice(0, maximumLength) : "";
+}
 
 function secureImageUrl(value: unknown) {
   if (typeof value !== "string" || !value.trim()) return null;
@@ -41,6 +49,8 @@ export async function lookupBookByIsbn(
   signal?: AbortSignal,
 ): Promise<BookLookupResult> {
   let title = "";
+  let author = "";
+  let publisher = "";
   const coverCandidates: string[] = [];
 
   try {
@@ -51,7 +61,9 @@ export async function lookupBookByIsbn(
     if (response.ok) {
       const books = await response.json() as OpenBdResponse;
       const summary = books[0]?.summary;
-      if (typeof summary?.title === "string") title = summary.title.trim().slice(0, 160);
+      title = summaryText(summary?.title, 160);
+      author = summaryText(summary?.author, 240);
+      publisher = summaryText(summary?.publisher, 160);
       const openBdCover = secureImageUrl(summary?.cover);
       if (openBdCover) coverCandidates.push(openBdCover);
     }
@@ -65,11 +77,11 @@ export async function lookupBookByIsbn(
   for (const coverUrl of coverCandidates) {
     try {
       const cover = await fetchCover(coverUrl, signal);
-      if (cover) return { title, cover };
+      if (cover) return { title, author, publisher, cover };
     } catch (error) {
       if (signal?.aborted) throw error;
     }
   }
 
-  return { title, cover: null };
+  return { title, author, publisher, cover: null };
 }

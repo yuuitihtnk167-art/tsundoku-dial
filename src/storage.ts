@@ -5,6 +5,8 @@ export type BookCategory = "unclassified" | "reading" | "reread" | "owned" | "re
 export type StoredBook = {
   id: string;
   title: string;
+  author?: string;
+  publisher?: string;
   notes: string;
   isbn: string | null;
   createdAt: string;
@@ -67,7 +69,7 @@ export async function getBooks() {
 }
 
 export async function addBook(
-  input: Pick<StoredBook, "title" | "notes" | "isbn" | "cover" | "original" | "crop">,
+  input: Pick<StoredBook, "title" | "author" | "publisher" | "notes" | "isbn" | "cover" | "original" | "crop">,
 ) {
   const database = await openDatabase();
   try {
@@ -84,6 +86,8 @@ export async function addBook(
     const book: StoredBook = {
       id: crypto.randomUUID(),
       title: input.title,
+      author: input.author,
+      publisher: input.publisher,
       notes: input.notes,
       isbn: input.isbn,
       createdAt: new Date().toISOString(),
@@ -101,7 +105,7 @@ export async function addBook(
 }
 
 export async function updateBook(
-  input: Pick<StoredBook, "id" | "title" | "notes" | "isbn" | "cover" | "original" | "crop">,
+  input: Pick<StoredBook, "id" | "title" | "author" | "publisher" | "notes" | "isbn" | "cover" | "original" | "crop">,
 ) {
   const database = await openDatabase();
   try {
