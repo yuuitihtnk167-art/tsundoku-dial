@@ -84,6 +84,7 @@ type BookCategoryOption = {
 };
 
 type BookViewMode = "dial" | "shelf";
+type BookDisplayDensity = "covers" | "compact";
 
 type BookDropTarget = DragDropTarget<BookCategory>;
 
@@ -105,6 +106,7 @@ const shelfCategoryOrder: BookCategory[] = [
   "read",
 ];
 const bookViewModeStorageKey = "tsundoku-dial-book-view-mode";
+const bookDisplayDensityStorageKey = "tsundoku-dial-book-display-density";
 
 function getInitialBookViewMode(): BookViewMode {
   try {
@@ -113,6 +115,16 @@ function getInitialBookViewMode(): BookViewMode {
       : "dial";
   } catch {
     return "dial";
+  }
+}
+
+function getInitialBookDisplayDensity(): BookDisplayDensity {
+  try {
+    return window.localStorage.getItem(bookDisplayDensityStorageKey) === "compact"
+      ? "compact"
+      : "covers";
+  } catch {
+    return "covers";
   }
 }
 
@@ -354,6 +366,7 @@ export function BookLibrary() {
   const [pastingCover, setPastingCover] = useState(false);
   const [activeCategory, setActiveCategory] = useState<BookCategory>("unclassified");
   const [bookViewMode, setBookViewMode] = useState<BookViewMode>(getInitialBookViewMode);
+  const [bookDisplayDensity, setBookDisplayDensity] = useState<BookDisplayDensity>(getInitialBookDisplayDensity);
   const [categoryDropActive, setCategoryDropActive] = useState<BookCategory | null>(null);
   const [classificationMessage, setClassificationMessage] = useState("");
   const [selectedBookId, setSelectedBookId] = useState<string | null>(null);
@@ -1323,10 +1336,12 @@ export function BookLibrary() {
   }
 
   function renderBookCard(book: Book, index: number) {
+    const compact = bookDisplayDensity === "compact";
     return (
       <button
         className={[
           "book-card",
+          compact ? "is-compact" : "",
           book.id === selectedBookId ? "is-selected" : "",
           book.id === draggingBookId ? "is-dragging" : "",
         ].filter(Boolean).join(" ")}
@@ -1350,8 +1365,18 @@ export function BookLibrary() {
             draggable={false}
           />
         </span>
-        <strong>{book.title}</strong>
-        <small>{formatDate(book.createdAt)}</small>
+        {compact ? (
+          <span className="book-card-copy">
+            <strong>{book.title}</strong>
+            <small>{book.author || "著者名未登録"}</small>
+            <small>{book.publisher || "出版社名未登録"}</small>
+          </span>
+        ) : (
+          <>
+            <strong>{book.title}</strong>
+            <small>{formatDate(book.createdAt)}</small>
+          </>
+        )}
       </button>
     );
   }
@@ -1537,6 +1562,17 @@ export function BookLibrary() {
     } catch {
       setSettingsError(true);
       setSettingsMessage("表示方法をこの端末に保存できませんでした。");
+    }
+  }
+
+  function selectBookDisplayDensity(density: BookDisplayDensity) {
+    setBookDisplayDensity(density);
+    clearBookSelection();
+    try {
+      window.localStorage.setItem(bookDisplayDensityStorageKey, density);
+    } catch {
+      setSettingsError(true);
+      setSettingsMessage("一覧の大きさをこの端末に保存できませんでした。");
     }
   }
 
@@ -1754,9 +1790,9 @@ export function BookLibrary() {
                     </h3>
                     <span>{categoryBooks.length}冊</span>
                   </div>
-                  <div className="bookshelf-row-scroll">
+                  <div className={bookDisplayDensity === "compact" ? "bookshelf-list" : "bookshelf-row-scroll"}>
                     {categoryBooks.length > 0 ? (
-                      <div className="bookshelf-row">
+                      <div className={bookDisplayDensity === "compact" ? "book-list" : "bookshelf-row"}>
                         {categoryBooks.map(renderBookCard)}
                       </div>
                     ) : (
@@ -1773,7 +1809,9 @@ export function BookLibrary() {
             <p>上の分類をタップして表示を切り替え、本をドラッグして分類してください。</p>
           </div>
         ) : (
-          <div className="book-grid">{visibleBooks.map(renderBookCard)}</div>
+          <div className={bookDisplayDensity === "compact" ? "book-list" : "book-grid"}>
+            {visibleBooks.map(renderBookCard)}
+          </div>
         )}
         {selectedBookId && !draggingBookId && (
           <p className="book-selection-hint" role="status">
@@ -1851,7 +1889,34 @@ export function BookLibrary() {
                   checked={bookViewMode === "shelf"}
                   onChange={() => selectBookViewMode("shelf")}
                 />
-                <span><strong>棚一覧表示</strong><small>分類ごとに横へスクロール</small></span>
+                <span><strong>棚一覧表示</strong><small>すべての分類を一覧表示</small></span>
+              </label>
+            </fieldset>
+            <h4>一覧の大きさ</h4>
+            <p>通常の表紙表示と、スマートフォンで約7冊を見渡せるコンパクト一覧を選べます。</p>
+            <fieldset className="view-mode-options">
+              <legend className="visually-hidden">一覧の大きさ</legend>
+              <label htmlFor="book-display-density-covers" aria-label="通常表示">
+                <input
+                  id="book-display-density-covers"
+                  type="radio"
+                  name="book-display-density"
+                  value="covers"
+                  checked={bookDisplayDensity === "covers"}
+                  onChange={() => selectBookDisplayDensity("covers")}
+                />
+                <span><strong>通常表示</strong><small>表紙を大きく表示</small></span>
+              </label>
+              <label htmlFor="book-display-density-compact" aria-label="コンパクト一覧">
+                <input
+                  id="book-display-density-compact"
+                  type="radio"
+                  name="book-display-density"
+                  value="compact"
+                  checked={bookDisplayDensity === "compact"}
+                  onChange={() => selectBookDisplayDensity("compact")}
+                />
+                <span><strong>コンパクト一覧</strong><small>表紙・タイトル・著者名・出版社名</small></span>
               </label>
             </fieldset>
           </section>
