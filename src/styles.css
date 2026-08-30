@@ -44,7 +44,7 @@ button { color: inherit; }
 .brand { display: flex; align-items: center; gap: 10px; color: var(--forest); font-family: Georgia, "Yu Mincho", serif; font-size: 19px; font-weight: 700; text-decoration: none; letter-spacing: .04em; }
 .brand-mark { display: grid; place-items: center; width: 35px; height: 35px; border: 2px solid var(--brass); border-radius: 7px; background: var(--forest); color: var(--lime); font-family: serif; font-size: 14px; box-shadow: inset 0 0 0 2px rgba(255,255,255,.12); }
 .topbar-actions { display: flex; align-items: center; gap: 9px; }
-.save-button, .empty-state button {
+.save-button {
   border: 0;
   border-radius: 999px;
   background: var(--ink);
@@ -54,9 +54,9 @@ button { color: inherit; }
   cursor: pointer;
   box-shadow: 0 8px 24px rgba(24,37,31,.12);
 }
-.add-button, .settings-button { border: 2px solid var(--brass); border-radius: 9px; background: linear-gradient(#fff7df, #ded0ab); color: var(--forest); padding: 10px 15px; font-weight: 800; cursor: pointer; box-shadow: inset 0 0 0 2px rgba(255,255,255,.55), 0 4px 0 #75572d, 0 7px 14px rgba(73,49,31,.18); }
-.add-button:active, .settings-button:active { transform: translateY(3px); box-shadow: inset 0 0 0 2px rgba(255,255,255,.4), 0 1px 0 #75572d; }
-.add-button span, .settings-button span { color: var(--forest); font-size: 18px; margin-right: 5px; }
+.settings-button { border: 2px solid var(--brass); border-radius: 9px; background: linear-gradient(#fff7df, #ded0ab); color: var(--forest); padding: 10px 15px; font-weight: 800; cursor: pointer; box-shadow: inset 0 0 0 2px rgba(255,255,255,.55), 0 4px 0 #75572d, 0 7px 14px rgba(73,49,31,.18); }
+.settings-button:active { transform: translateY(3px); box-shadow: inset 0 0 0 2px rgba(255,255,255,.4), 0 1px 0 #75572d; }
+.settings-button span { color: var(--forest); font-size: 18px; margin-right: 5px; }
 
 .eyebrow { margin: 0 0 16px; color: var(--forest); font-size: 11px; font-weight: 800; letter-spacing: .18em; }
 
@@ -65,7 +65,7 @@ button { color: inherit; }
 .console-nameplate h1 { margin: 0; font-family: Georgia, "Yu Mincho", serif; color: #2c281e; font-size: 23px; letter-spacing: .12em; text-shadow: 0 1px rgba(255,238,183,.38); }
 .console-nameplate > span { width: 7px; height: 7px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #f6dc94, #67471e 70%); box-shadow: 0 1px 2px #3e2a16; }
 .category-zone-panel { display: grid; grid-template-columns: repeat(6, 1fr); width: min(620px, 100%); margin: 20px auto 0; overflow: hidden; border: 3px solid #80602f; border-radius: 12px; background: #d8bd7c; box-shadow: inset 0 0 0 2px rgba(255,245,207,.4), 0 8px 18px rgba(73,49,31,.18); }
-.category-zone { grid-column: span 2; display: grid; align-content: center; gap: 5px; min-height: 84px; margin: 0; border: 0; border-right: 1px solid rgba(73,49,31,.42); border-bottom: 1px solid rgba(73,49,31,.42); border-radius: 0; background: rgba(255,248,223,.72); color: var(--forest); padding: 12px; text-align: center; cursor: pointer; transition: background .16s ease, box-shadow .16s ease; }
+.category-zone { grid-column: span 2; display: grid; align-content: center; gap: 5px; min-height: 84px; margin: 0; border: 0; border-right: 1px solid rgba(73,49,31,.42); border-bottom: 1px solid rgba(73,49,31,.42); border-radius: 0; background: rgba(255,248,223,.72); color: var(--forest); padding: 12px; text-align: center; cursor: pointer; touch-action: pan-y; user-select: none; -webkit-touch-callout: none; transition: background .16s ease, box-shadow .16s ease; }
 .category-zone:nth-child(3), .category-zone:nth-child(5) { border-right: 0; }
 .category-zone:nth-child(n + 4) { grid-column: span 3; }
 .category-zone span { font-family: Georgia, "Yu Mincho", serif; font-weight: 700; }
@@ -95,7 +95,7 @@ button { color: inherit; }
 .bookshelf-category { min-width: 0; padding: 18px 0 20px; border: 2px solid transparent; border-bottom-color: var(--line); border-radius: 14px; transition: border-color .16s ease, background .16s ease; }
 .bookshelf-category.is-drop-active { border-color: #8e8f24; background: rgba(215,240,90,.16); }
 .bookshelf-category-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; padding: 0 4px 14px; }
-.bookshelf-category-heading h3 { margin: 0; font-family: Georgia, "Yu Mincho", serif; font-size: 24px; font-weight: 500; }
+.bookshelf-category-heading h3 { margin: 0; font-family: Georgia, "Yu Mincho", serif; font-size: 24px; font-weight: 500; cursor: pointer; touch-action: pan-y; user-select: none; -webkit-touch-callout: none; }
 .bookshelf-category-heading span { color: var(--muted); font-size: 12px; font-weight: 700; }
 .bookshelf-row-scroll { min-width: 0; overflow-x: auto; overflow-y: hidden; padding: 7px 5px 24px; overscroll-behavior-inline: contain; scrollbar-gutter: stable; }
 .bookshelf-list { min-width: 0; padding: 7px 5px 18px; }
@@ -171,6 +171,7 @@ button { color: inherit; }
 .add-dialog form { padding: 28px; }
 .dialog-heading { display: flex; align-items: start; justify-content: space-between; margin-bottom: 22px; }
 .dialog-heading h2 { margin: 0; font-family: Georgia, "Yu Mincho", serif; font-size: 30px; font-weight: 500; }
+.registration-category { margin: -7px 0 0; color: var(--forest); font-size: 14px; font-weight: 800; }
 .close-button { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 50%; border: 1px solid var(--line); background: transparent; font-size: 24px; cursor: pointer; }
 .camera-prompt { width: 100%; min-height: 250px; border: 1px dashed #91a096; border-radius: 16px; background: #f0f2e9; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; cursor: pointer; }
 .camera-prompt small { color: var(--muted); }
@@ -290,7 +291,7 @@ button { color: inherit; }
   .brand-mark { width: 31px; height: 31px; }
   .topbar { padding: 9px 10px; }
   .topbar-actions { gap: 6px; }
-  .settings-button, .add-button { padding: 9px 11px; font-size: 12px; }
+  .settings-button { padding: 9px 11px; font-size: 12px; }
   .category-console { width: calc(100% - 20px); margin: 16px auto 24px; padding: 17px 9px 20px; border-width: 5px; border-radius: 17px; }
   .console-nameplate { padding: 8px 12px; }
   .console-nameplate h1 { font-size: 19px; }
