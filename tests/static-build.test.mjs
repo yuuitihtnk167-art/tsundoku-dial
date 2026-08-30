@@ -112,7 +112,9 @@ test("GitHub Pages用の静的アプリを生成する", async () => {
   assert.match(styles, /\.add-button, \.settings-button \{ border: 2px solid var\(--brass\)/);
   assert.match(styles, /\.add-button:active, \.settings-button:active/);
   assert.match(app, /type BookViewMode = "dial" \| "shelf"/);
+  assert.match(app, /type BookDisplayDensity = "covers" \| "compact"/);
   assert.match(app, /tsundoku-dial-book-view-mode/);
+  assert.match(app, /tsundoku-dial-book-display-density/);
   assert.match(app, /shelfCategoryOrder/);
   assert.match(app, /data-category-row=\{category\}/);
   assert.match(app, /bookViewMode === "shelf" &&/);
@@ -124,6 +126,13 @@ test("GitHub Pages用の静的アプリを生成する", async () => {
   assert.match(app, /getBookDragHorizontalScrollDelta/);
   assert.match(styles, /\.bookshelf-row-scroll/);
   assert.match(styles, /touch-action: pan-x pan-y/);
+  assert.match(app, /bookDisplayDensity === "compact"/);
+  assert.match(app, /表紙・タイトル・著者名・出版社名/);
+  assert.match(app, /book\.author \|\| "著者名未登録"/);
+  assert.match(app, /book\.publisher \|\| "出版社名未登録"/);
+  assert.match(styles, /\.book-list \{ display: grid; gap: 6px/);
+  assert.match(styles, /\.book-card\.is-compact \{[^}]*touch-action: pan-y/);
+  assert.match(styles, /min-height: clamp\(64px, 9svh, 74px\)/);
   assert.match(app, /完全バックアップを作成/);
   assert.match(app, /accept="\.json,application\/json"/);
   assert.match(app, /createCompleteBackup/);
@@ -163,6 +172,6 @@ test("GitHub Pages用の静的アプリを生成する", async () => {
     parsedManifest.icons.map(({ sizes }) => sizes),
     ["192x192", "512x512"],
   );
-  assert.match(serviceWorker, /tsundoku-dial-v32/);
+  assert.match(serviceWorker, /tsundoku-dial-v33/);
   assert.match(serviceWorker, /caches\.delete/);
 });
