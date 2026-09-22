@@ -1755,6 +1755,14 @@ export function BookLibrary() {
         </a>
         <div className="topbar-actions">
           <button
+            className="add-button"
+            type="button"
+            aria-haspopup="dialog"
+            onClick={() => openAddDialog(activeCategory)}
+          >
+            <span aria-hidden="true">＋</span> 本を登録する
+          </button>
+          <button
             className="settings-button"
             type="button"
             aria-haspopup="dialog"
