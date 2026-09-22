@@ -1120,9 +1120,9 @@ export function BookLibrary() {
         pointer.currentX,
         pointer.currentY,
       ) as HTMLElement | null;
-      if (element?.closest("[data-book-drop]")) return;
 
       const shelfRow = element?.closest<HTMLElement>(".bookshelf-row-scroll");
+      if (!shelfRow && element?.closest("[data-book-drop]")) return;
       let rowScrolled = false;
       if (shelfRow) {
         const rowBounds = shelfRow.getBoundingClientRect();

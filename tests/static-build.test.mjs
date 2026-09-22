@@ -181,6 +181,6 @@ test("GitHub Pages用の静的アプリを生成する", async () => {
   const shelfViewIndex = app.indexOf(') : bookViewMode === "shelf" ? (');
   const emptyLibraryIndex = app.indexOf(') : books.length === 0 ? (');
   assert.ok(shelfViewIndex >= 0 && shelfViewIndex < emptyLibraryIndex);
-  assert.match(serviceWorker, /tsundoku-dial-v36/);
+  assert.match(serviceWorker, /tsundoku-dial-v37/);
   assert.match(serviceWorker, /caches\.delete/);
 });
