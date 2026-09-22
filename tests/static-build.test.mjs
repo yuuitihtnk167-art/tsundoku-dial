@@ -114,9 +114,9 @@ test("GitHub Pages用の静的アプリを生成する", async () => {
   assert.match(app, /削除をキャンセルしました/);
   assert.doesNotMatch(app, /accept="image\/\*"|標準カメラ|fileInputRef|choosePhoto/);
   assert.match(app, /className="settings-button"/);
-  assert.doesNotMatch(app, /className="add-button"/);
+  assert.match(app, /className="add-button"/);
   assert.match(styles, /\.settings-button \{ border: 2px solid var\(--brass\)/);
-  assert.doesNotMatch(styles, /\.add-button/);
+  assert.match(styles, /\.add-button/);
   assert.match(app, /type BookViewMode = "dial" \| "shelf"/);
   assert.match(app, /type BookDisplayDensity = "covers" \| "compact"/);
   assert.match(app, /tsundoku-dial-book-view-mode/);
@@ -181,6 +181,6 @@ test("GitHub Pages用の静的アプリを生成する", async () => {
   const shelfViewIndex = app.indexOf(') : bookViewMode === "shelf" ? (');
   const emptyLibraryIndex = app.indexOf(') : books.length === 0 ? (');
   assert.ok(shelfViewIndex >= 0 && shelfViewIndex < emptyLibraryIndex);
-  assert.match(serviceWorker, /tsundoku-dial-v35/);
+  assert.match(serviceWorker, /tsundoku-dial-v36/);
   assert.match(serviceWorker, /caches\.delete/);
 });
