@@ -36,6 +36,7 @@ import {
 } from "./book-drop";
 import { lookupBookByIsbn } from "./book-lookup";
 import { getTitleMatch } from "./book-match";
+import { parseBookImport } from "./book-import";
 import { IsbnScanner } from "./IsbnScanner";
 import { createCompleteBackup, parseCompleteBackup, type ParsedBackup } from "./backup";
 
@@ -247,27 +248,21 @@ function createTitleAnalysisPrompt(input: { title: string; author: string; publi
     "- 出版社の公式書籍ページ、著者の公式情報など、信頼できる情報を優先してください。",
     "- 同名の本や複数の版があり、どの本か判断できない場合は候補を提示し、勝手に決めないでください。",
     "- 確認できない情報を推測で書かないでください。",
-    "- 確認できない情報は「確認できない」としてください。",
+    "- 本を特定できない場合はJSONを出力せず、確認が必要な点を伝えてください。",
     "",
     "【出力形式】",
     "",
-    "最初に、本の正式タイトル、著者名、出版社名を、それぞれ独立したコードブロックで出力してください。",
+    "本のテキスト情報は次の形のJSONを、1つのコードブロックで出力してください。他のコードブロックは作らないでください。",
+    "そのままコピーできる有効なJSONにし、各項目のキー名を変えないでください。",
+    "確認できない著者名・出版社名・本の内容は空文字、ISBNはnullにしてください。",
+    "ISBNを確認できた場合は13桁の文字列にしてください。入力済みのISBNも、該当する本のものと確認できた場合は出力してください。",
+    "タイトルは160文字、著者名は240文字、出版社名は160文字、本の内容は1000文字以内にしてください。",
     "",
-    "```text",
-    "本の正式タイトル",
+    "```json",
+    '{"title":"本の正式タイトル","author":"著者名","publisher":"出版社名","notes":"本の内容","isbn":null}',
     "```",
     "",
-    "```text",
-    "著者名",
-    "```",
-    "",
-    "```text",
-    "出版社名",
-    "```",
-    "",
-    "その後、読書記録用の本文を別のコードブロックで出力してください。",
-    "",
-    "本文には次の内容を、簡潔で分かりやすい文章にまとめてください。",
+    "notesには、次の内容を読書記録用の本文として簡潔で分かりやすい文章にまとめてください。",
     "",
     "- どんな本なのか",
     "- 主に何を学べる本なのか",
@@ -277,10 +272,6 @@ function createTitleAnalysisPrompt(input: { title: string; author: string; publi
     "",
     "文章は、あとから読書記録を見返したときに「どんな本だったか」がすぐ分かる程度の長さにしてください。",
     "長すぎる説明や細かすぎる目次紹介は不要です。",
-    "",
-    "```text",
-    "読書記録用本文",
-    "```",
     "",
     "【文章の方針】",
     "",
@@ -382,6 +373,7 @@ export function BookLibrary() {
   const [titlePromptCopied, setTitlePromptCopied] = useState(false);
   const [titleSharing, setTitleSharing] = useState(false);
   const [pastingCover, setPastingCover] = useState(false);
+  const [pastingBookInformation, setPastingBookInformation] = useState(false);
   const [activeCategory, setActiveCategory] = useState<BookCategory>("unclassified");
   const [registrationCategory, setRegistrationCategory] = useState<BookCategory>("unclassified");
   const [bookViewMode, setBookViewMode] = useState<BookViewMode>(getInitialBookViewMode);
@@ -410,6 +402,7 @@ export function BookLibrary() {
   const detailDialogRef = useRef<HTMLDialogElement>(null);
   const settingsDialogRef = useRef<HTMLDialogElement>(null);
   const bookLookupAbortRef = useRef<AbortController | null>(null);
+  const pastedCoverRef = useRef(false);
   const duplicateWarningRef = useRef<HTMLElement>(null);
   const titleRef = useRef("");
   const authorRef = useRef("");
@@ -466,6 +459,7 @@ export function BookLibrary() {
 
   const updateIsbn = useCallback((nextIsbn: string | null) => {
     stopBookLookup();
+    pastedCoverRef.current = false;
     setIsbn(nextIsbn);
     setTitlePromptCopied(false);
     setDuplicateConfirmed(false);
@@ -502,26 +496,32 @@ export function BookLibrary() {
         }
 
         let coverApplied = false;
-        if (result.cover) {
+        if (result.cover && !pastedCoverRef.current) {
           try {
             const normalized = await normalizePhoto(result.cover);
             if (controller.signal.aborted) return;
-            setPhoto(normalized);
-            setPhotoUrl((current) => {
-              if (current) URL.revokeObjectURL(current);
-              return URL.createObjectURL(normalized);
-            });
-            setPhotoAspectRatio(2 / 3);
-            setCrop(fullCrop);
-            setCropMessage("ISBNから表紙を取得しました。必要ならガイド付きで撮り直せます。");
-            coverApplied = true;
+            if (!pastedCoverRef.current) {
+              setPhoto(normalized);
+              setPhotoUrl((current) => {
+                if (current) URL.revokeObjectURL(current);
+                return URL.createObjectURL(normalized);
+              });
+              setPhotoAspectRatio(2 / 3);
+              setCrop(fullCrop);
+              setCropMessage("ISBNから表紙を取得しました。必要ならガイド付きで撮り直せます。");
+              coverApplied = true;
+            }
           } catch {
             coverApplied = false;
           }
         }
 
         const bibliographicDataFound = Boolean(result.title || result.author || result.publisher);
-        if (bibliographicDataFound && coverApplied) {
+        if (pastedCoverRef.current) {
+          setBookLookupMessage(bibliographicDataFound
+            ? "書籍情報を取得しました。貼り付けた表紙を使用します。"
+            : "貼り付けた表紙を使用します。書誌情報を入力してください。");
+        } else if (bibliographicDataFound && coverApplied) {
           setBookLookupMessage("書籍情報と表紙を取得しました。");
         } else if (bibliographicDataFound) {
           setBookLookupMessage("書籍情報を取得しました。表紙はガイド付きで撮影してください。");
@@ -694,6 +694,7 @@ export function BookLibrary() {
 
   function openAddDialog(category: BookCategory) {
     stopCamera();
+    pastedCoverRef.current = false;
     setEditingBookId(null);
     setRegistrationCategory(category);
     setPhoto(null);
@@ -1560,6 +1561,7 @@ export function BookLibrary() {
         const image = await item.getType(imageType);
         const applied = await applyPhoto(image);
         if (applied) {
+          pastedCoverRef.current = true;
           setCropMessage("貼り付けた表紙画像を読み込みました。必要なら白い枠を調整してください。");
         }
         return;
@@ -1573,6 +1575,45 @@ export function BookLibrary() {
       }
     } finally {
       setPastingCover(false);
+    }
+  }
+
+  async function pasteBookInformationFromClipboard() {
+    if (!navigator.clipboard?.readText) {
+      setError("この端末またはブラウザはテキストの貼り付けに対応していません。");
+      return;
+    }
+
+    setPastingBookInformation(true);
+    setError("");
+    try {
+      const imported = parseBookImport(await navigator.clipboard.readText());
+      titleRef.current = imported.title;
+      authorRef.current = imported.author;
+      publisherRef.current = imported.publisher;
+      setTitle(imported.title);
+      setAuthor(imported.author);
+      setPublisher(imported.publisher);
+      setNotes(imported.notes);
+      if (imported.isbn && !photo) {
+        updateIsbn(imported.isbn);
+      } else {
+        stopBookLookup();
+        setIsbn(imported.isbn);
+        setBookLookupMessage(photo && isbn !== imported.isbn
+          ? "ISBNが変わりました。現在の表紙画像がこの本のものか確認してください。"
+          : "");
+      }
+      setTitlePromptCopied(false);
+      setDuplicateConfirmed(false);
+    } catch (pasteError) {
+      if (pasteError instanceof DOMException && pasteError.name === "NotAllowedError") {
+        setError("クリップボードの読み取りが許可されませんでした。貼り付けを許可してもう一度お試しください。");
+      } else {
+        setError(pasteError instanceof Error ? pasteError.message : "本の情報を貼り付けられませんでした。");
+      }
+    } finally {
+      setPastingBookInformation(false);
     }
   }
 
@@ -2276,6 +2317,15 @@ export function BookLibrary() {
                 {titleSharing ? "共有・コピー中…" : titlePromptCopied ? "調査文をコピーしました" : "ChatGPTで本を調べる"}
               </button>
               <small>{titlePromptCopied ? "ChatGPTに調査文を貼り付けてください。" : "共有先でChatGPTを選んでください。共有できない場合は調査文をコピーします。"}</small>
+              <button
+                className="paste-cover-button"
+                type="button"
+                onClick={() => void pasteBookInformationFromClipboard()}
+                disabled={pastingBookInformation}
+              >
+                {pastingBookInformation ? "本の情報を貼り付けています…" : "テキストを一括貼り付け"}
+              </button>
+              <small>ChatGPTのコードブロックをコピーすると、入力済みの項目も上書きします。内容を確認してから登録してください。</small>
               <button
                 className="paste-cover-button"
                 type="button"

@@ -29,6 +29,8 @@ test("GitHub Pages用の静的アプリを生成する", async () => {
   assert.match(app, /minimumCropSize = 8/);
   assert.match(app, /navigator\.share/);
   assert.match(app, /createTitleAnalysisPrompt/);
+  assert.match(app, /テキストを一括貼り付け/);
+  assert.match(app, /parseBookImport\(await navigator\.clipboard\.readText\(\)\)/);
   assert.match(app, /正式タイトル・著者名・出版社名・本の要約・表紙画像/);
   assert.match(app, /navigator\.clipboard\.read\(\)/);
   assert.match(app, /表紙画像を貼り付ける/);
@@ -40,7 +42,7 @@ test("GitHub Pages用の静的アプリを生成する", async () => {
   assert.match(app, /ChatGPTに貼り付けてください。/);
   assert.match(app, /出版社、公式書籍ページ、著者情報などを優先/);
   assert.match(app, /本のタイトル、著者名、出版社名を、それぞれ独立したコードブロック/);
-  assert.match(app, /本の正式タイトル、著者名、出版社名を、それぞれ独立したコードブロック/);
+  assert.match(app, /本のテキスト情報は次の形のJSONを、1つのコードブロック/);
   assert.match(app, /200～300文字程度を目安にする/);
   assert.match(app, /text: bookAnalysisPrompt/);
   assert.match(app, /}, 300\)/);
@@ -181,6 +183,6 @@ test("GitHub Pages用の静的アプリを生成する", async () => {
   const shelfViewIndex = app.indexOf(') : bookViewMode === "shelf" ? (');
   const emptyLibraryIndex = app.indexOf(') : books.length === 0 ? (');
   assert.ok(shelfViewIndex >= 0 && shelfViewIndex < emptyLibraryIndex);
-  assert.match(serviceWorker, /tsundoku-dial-v40/);
+  assert.match(serviceWorker, /tsundoku-dial-v41/);
   assert.match(serviceWorker, /caches\.delete/);
 });
