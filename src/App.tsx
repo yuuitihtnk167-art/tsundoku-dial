@@ -225,17 +225,25 @@ const bookAnalysisPrompt = [
   "- ISBN、価格、発売日などは、内容理解に必要でなければ本文には入れない",
 ].join("\n");
 
-function createTitleAnalysisPrompt(inputTitle: string) {
+function createTitleAnalysisPrompt(input: { title: string; author: string; publisher: string; isbn: string | null }) {
+  const bookInformation = [
+    input.title.trim() && `タイトル：${input.title.trim()}`,
+    input.author.trim() && `著者名：${input.author.trim()}`,
+    input.publisher.trim() && `出版社名：${input.publisher.trim()}`,
+    input.isbn && `ISBN：${input.isbn}`,
+  ].filter(Boolean);
   return [
-    "次のタイトルに該当する本をWebで調べ、読書記録アプリに保存するための情報を作成してください。",
+    "次の書籍情報に該当する本をWebで調べ、読書記録アプリに保存するための情報を作成してください。",
     "",
-    "【入力したタイトル】",
+    "【入力済みの書籍情報（手入力・ISBNバーコードから取得）】",
     "",
-    `「${inputTitle}」`,
+    ...bookInformation,
     "",
     "【調査】",
     "",
-    "- 入力したタイトルから、該当する本の正式な書名、著者名、出版社などを確認してください。",
+    "- 入力済みのタイトル・著者名・出版社名・ISBNを照合し、該当する本の正式な書名、著者名、出版社などを確認してください。",
+    "- ISBNがある場合は、そのISBNの書籍と版を確認してください。入力された書誌情報と食い違う場合は、矛盾を伝えて確認を求め、勝手に同じ本と判断しないでください。",
+    "- 情報が足りず本を特定できない場合は、追加情報を尋ねてください。",
     "- 出版社の公式書籍ページ、著者の公式情報など、信頼できる情報を優先してください。",
     "- 同名の本や複数の版があり、どの本か判断できない場合は候補を提示し、勝手に決めないでください。",
     "- 確認できない情報を推測で書かないでください。",
@@ -459,6 +467,7 @@ export function BookLibrary() {
   const updateIsbn = useCallback((nextIsbn: string | null) => {
     stopBookLookup();
     setIsbn(nextIsbn);
+    setTitlePromptCopied(false);
     setDuplicateConfirmed(false);
     if (!nextIsbn) {
       setBookLookupMessage("");
@@ -1505,17 +1514,17 @@ export function BookLibrary() {
 
   async function shareOrCopyTitleAnalysisPrompt() {
     const trimmedTitle = title.trim();
-    if (!trimmedTitle) {
-      setError("先にタイトルを入力してください。");
+    if (!trimmedTitle && !author.trim() && !publisher.trim() && !isbn) {
+      setError("タイトル・著者名・出版社名のいずれかを入力するか、ISBNバーコードを読み取ってください。");
       return;
     }
-    const prompt = createTitleAnalysisPrompt(trimmedTitle);
+    const prompt = createTitleAnalysisPrompt({ title, author, publisher, isbn });
     setTitleSharing(true);
     setError("");
     try {
       if (navigator.share) {
         try {
-          await navigator.share({ title: `${trimmedTitle}を調べる`, text: prompt });
+          await navigator.share({ title: `${trimmedTitle || isbn || author.trim() || publisher.trim()}を調べる`, text: prompt });
           return;
         } catch (shareError) {
           if (shareError instanceof DOMException && shareError.name === "AbortError") return;
@@ -2239,19 +2248,30 @@ export function BookLibrary() {
           )}
 
           <div className="fields">
-            <label><span>タイトル</span><input value={title} onChange={(event) => {
+            <label><span>タイトル <small>任意</small></span><input value={title} onChange={(event) => {
               titleRef.current = event.target.value;
               setTitle(event.target.value);
               setTitlePromptCopied(false);
               setDuplicateConfirmed(false);
-            }} placeholder="あとからでも入力できます" maxLength={160} /></label>
+            }} placeholder="ISBNから自動入力、または手入力" maxLength={160} /></label>
+            <label><span>著者名 <small>任意</small></span><input value={author} onChange={(event) => {
+              authorRef.current = event.target.value;
+              setAuthor(event.target.value);
+              setTitlePromptCopied(false);
+            }} placeholder="ISBNから自動入力、または手入力" maxLength={240} /></label>
+            <label><span>出版社名 <small>任意</small></span><input value={publisher} onChange={(event) => {
+              publisherRef.current = event.target.value;
+              setPublisher(event.target.value);
+              setTitlePromptCopied(false);
+            }} placeholder="ISBNから自動入力、または手入力" maxLength={160} /></label>
+            <label><span>本の内容 <small>任意</small></span><textarea value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={1000} rows={3} /></label>
             <div className="title-analysis-panel">
-              <small>入力したタイトルから、正式タイトル・著者名・出版社名・本の要約・表紙画像をChatGPTで調べます。</small>
+              <small>入力済みのタイトル・著者名・出版社名・ISBNをもとに、正式タイトル・著者名・出版社名・本の要約・表紙画像をChatGPTで調べます。</small>
               <button
                 className="share-button"
                 type="button"
                 onClick={() => void shareOrCopyTitleAnalysisPrompt()}
-                disabled={!title.trim() || titleSharing}
+                disabled={!(title.trim() || author.trim() || publisher.trim() || isbn) || titleSharing || lookingUpBook}
               >
                 {titleSharing ? "共有・コピー中…" : titlePromptCopied ? "調査文をコピーしました" : "ChatGPTで本を調べる"}
               </button>
@@ -2266,15 +2286,6 @@ export function BookLibrary() {
               </button>
               <small>ChatGPTなどでコピーした画像を表紙として読み込みます。</small>
             </div>
-            <label><span>著者名 <small>任意</small></span><input value={author} onChange={(event) => {
-              authorRef.current = event.target.value;
-              setAuthor(event.target.value);
-            }} placeholder="ISBNから自動入力、または手入力" maxLength={240} /></label>
-            <label><span>出版社名 <small>任意</small></span><input value={publisher} onChange={(event) => {
-              publisherRef.current = event.target.value;
-              setPublisher(event.target.value);
-            }} placeholder="ISBNから自動入力、または手入力" maxLength={160} /></label>
-            <label><span>メモ <small>任意</small></span><textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="この本を選んだ理由など" maxLength={1000} rows={3} /></label>
           </div>
 
           {error && <p className="error-message" role="alert">{error}</p>}
