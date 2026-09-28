@@ -1503,46 +1503,33 @@ export function BookLibrary() {
     }
   }
 
-  async function copyTitleAnalysisPrompt() {
+  async function shareOrCopyTitleAnalysisPrompt() {
     const trimmedTitle = title.trim();
     if (!trimmedTitle) {
       setError("先にタイトルを入力してください。");
       return;
     }
-    if (!navigator.clipboard?.writeText) {
-      setError("この端末またはブラウザは文章のコピーに対応していません。");
-      return;
-    }
-    try {
-      await navigator.clipboard.writeText(createTitleAnalysisPrompt(trimmedTitle));
-      setTitlePromptCopied(true);
-      setError("");
-    } catch {
-      setError("分析用の文章をコピーできませんでした。もう一度お試しください。");
-    }
-  }
-
-  async function shareTitleAnalysisPrompt() {
-    const trimmedTitle = title.trim();
-    if (!trimmedTitle) {
-      setError("先にタイトルを入力してください。");
-      return;
-    }
-    if (!navigator.share) {
-      setError("この端末またはブラウザは共有に対応していません。分析用の文章をコピーしてお使いください。");
-      return;
-    }
-
+    const prompt = createTitleAnalysisPrompt(trimmedTitle);
     setTitleSharing(true);
     setError("");
     try {
-      await navigator.share({
-        title: `${trimmedTitle}を調べる`,
-        text: createTitleAnalysisPrompt(trimmedTitle),
-      });
-    } catch (shareError) {
-      if (shareError instanceof DOMException && shareError.name === "AbortError") return;
-      setError("分析用の文章を共有できませんでした。もう一度お試しください。");
+      if (navigator.share) {
+        try {
+          await navigator.share({ title: `${trimmedTitle}を調べる`, text: prompt });
+          return;
+        } catch (shareError) {
+          if (shareError instanceof DOMException && shareError.name === "AbortError") return;
+        }
+      }
+
+      if (!navigator.clipboard?.writeText) {
+        setError("共有も文章のコピーも利用できませんでした。");
+        return;
+      }
+      await navigator.clipboard.writeText(prompt);
+      setTitlePromptCopied(true);
+    } catch {
+      setError("調査文を共有・コピーできませんでした。もう一度お試しください。");
     } finally {
       setTitleSharing(false);
     }
@@ -1820,7 +1807,7 @@ export function BookLibrary() {
             <strong>{visibleBooks.length}冊</strong>
             <span aria-hidden="true" />
           </p>
-          <p className="category-panel-help">分類をタップして表示、長押しでその分類に本を登録。本をドラッグして分類・削除できます</p>
+          <p className="category-panel-help">分類をタップして表示、長押しでもその分類に本を登録。本をドラッグして分類・削除できます</p>
         </section>
       )}
 
@@ -1901,7 +1888,7 @@ export function BookLibrary() {
           <div className="empty-state">
             <div className="empty-books" aria-hidden="true"><i /><i /><i /></div>
             <h3>最初の一冊を積んでみましょう</h3>
-            <p>上の分類を長押しして、本の登録を始めてください。</p>
+            <p>「本を登録する」ボタンから、最初の一冊を登録できます。</p>
           </div>
         ) : visibleBooks.length === 0 ? (
           <div className="category-empty">
@@ -2259,24 +2246,16 @@ export function BookLibrary() {
               setDuplicateConfirmed(false);
             }} placeholder="あとからでも入力できます" maxLength={160} /></label>
             <div className="title-analysis-panel">
-              <button
-                className="copy-prompt-button"
-                type="button"
-                onClick={() => void copyTitleAnalysisPrompt()}
-                disabled={!title.trim()}
-              >
-                {titlePromptCopied ? "コピーしました" : "分析用の文章をコピー"}
-              </button>
               <small>入力したタイトルから、正式タイトル・著者名・出版社名・本の要約・表紙画像をChatGPTで調べます。</small>
               <button
                 className="share-button"
                 type="button"
-                onClick={() => void shareTitleAnalysisPrompt()}
+                onClick={() => void shareOrCopyTitleAnalysisPrompt()}
                 disabled={!title.trim() || titleSharing}
               >
-                {titleSharing ? "共有画面を開いています…" : "ChatGPTで検索"}
+                {titleSharing ? "共有・コピー中…" : titlePromptCopied ? "調査文をコピーしました" : "ChatGPTで本を調べる"}
               </button>
-              <small>共有先でChatGPTを選んでください。</small>
+              <small>{titlePromptCopied ? "ChatGPTに調査文を貼り付けてください。" : "共有先でChatGPTを選んでください。共有できない場合は調査文をコピーします。"}</small>
               <button
                 className="paste-cover-button"
                 type="button"
