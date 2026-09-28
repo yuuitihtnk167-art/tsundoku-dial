@@ -171,7 +171,9 @@ button { color: inherit; }
 .add-dialog form { padding: 28px; }
 .dialog-heading { display: flex; align-items: start; justify-content: space-between; margin-bottom: 22px; }
 .dialog-heading h2 { margin: 0; font-family: Georgia, "Yu Mincho", serif; font-size: 30px; font-weight: 500; }
-.registration-category { margin: -7px 0 0; color: var(--forest); font-size: 14px; font-weight: 800; }
+.registration-category { display: inline-flex; align-items: center; gap: 2px; margin: -7px 0 0; color: var(--forest); font-size: 14px; font-weight: 800; }
+.registration-category select { min-height: 40px; max-width: min(60vw, 240px); padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; background: #fffdf8; color: var(--forest); font: inherit; cursor: pointer; }
+.registration-category select:focus-visible { outline: 3px solid var(--lime); outline-offset: 2px; }
 .close-button { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 50%; border: 1px solid var(--line); background: transparent; font-size: 24px; cursor: pointer; }
 .camera-prompt { width: 100%; min-height: 250px; border: 1px dashed #91a096; border-radius: 16px; background: #f0f2e9; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; cursor: pointer; }
 .camera-prompt small { color: var(--muted); }
@@ -246,14 +248,10 @@ button { color: inherit; }
 .crop-move:focus-visible, .crop-handle:focus-visible { outline: 3px solid var(--lime); outline-offset: 2px; }
 .retake { border: 0; background: transparent; color: var(--forest); text-decoration: underline; padding: 12px 0 0; cursor: pointer; }
 .retake-actions { display: flex; flex-wrap: wrap; gap: 0 18px; }
-.share-panel { display: grid; gap: 7px; margin-top: 20px; }
-.copy-prompt-button, .share-button, .paste-cover-button { width: 100%; border: 1px solid var(--forest); border-radius: 12px; padding: 13px 16px; font-weight: 700; cursor: pointer; }
-.copy-prompt-button { background: var(--forest); color: white; }
+.share-button, .paste-cover-button { width: 100%; border: 1px solid var(--forest); border-radius: 12px; padding: 13px 16px; font-weight: 700; cursor: pointer; }
 .share-button { background: transparent; color: var(--forest); }
 .paste-cover-button { background: #f0f2e9; color: var(--forest); }
-.copy-prompt-button:disabled, .share-button:disabled, .paste-cover-button:disabled { opacity: .55; cursor: not-allowed; }
-.share-panel small { color: var(--muted); font-size: 11px; line-height: 1.5; text-align: center; }
-.copy-instruction + .share-button { margin-top: 8px; }
+.share-button:disabled, .paste-cover-button:disabled { opacity: .55; cursor: not-allowed; }
 .title-analysis-panel { display: grid; gap: 7px; padding: 12px; border: 1px solid var(--line); border-radius: 14px; background: rgba(240,242,233,.58); }
 .title-analysis-panel small { color: var(--muted); font-size: 11px; line-height: 1.5; text-align: center; }
 .title-analysis-panel small + button { margin-top: 5px; }

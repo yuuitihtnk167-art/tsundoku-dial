@@ -172,61 +172,7 @@ const cropHandles: Array<{ handle: CropHandle; label: string }> = [
   { handle: "w", label: "左辺を調整" },
 ];
 
-const bookAnalysisPrompt = [
-  "添付・共有した本の画像を確認し、この本について調べて、読書記録アプリに保存するための文章を作成してください。",
-  "",
-  "【調査】",
-  "",
-  "- 表紙から書名・著者名・出版社などを読み取ってください。",
-  "- 書名を特定したら、Webで信頼できる情報を調べて内容を確認してください。",
-  "- 出版社、公式書籍ページ、著者情報などを優先してください。",
-  "- 画像だけでは確認できない内容を推測で書かないでください。",
-  "- 確認できない情報は「確認できない」としてください。",
-  "",
-  "【出力形式】",
-  "",
-  "最初に、本のタイトル、著者名、出版社名を、それぞれ独立したコードブロックで出力してください。",
-  "",
-  "```text",
-  "本の正式タイトル",
-  "```",
-  "",
-  "```text",
-  "著者名",
-  "```",
-  "",
-  "```text",
-  "出版社名",
-  "```",
-  "",
-  "その後、読書記録用の本文を別のコードブロックで出力してください。",
-  "",
-  "本文には次の内容を、簡潔で分かりやすい文章にまとめてください。",
-  "",
-  "- どんな本なのか",
-  "- 主に何を学べる本なのか",
-  "- 主な内容・テーマ",
-  "- どんな人に向いている本なのか",
-  "- この本の特徴",
-  "",
-  "文章は、あとから読書記録を見返したときに「どんな本だったか」がすぐ分かる程度の長さにしてください。",
-  "長すぎる説明や細かすぎる目次紹介は不要です。",
-  "",
-  "```text",
-  "読書記録用本文",
-  "```",
-  "",
-  "【文章の方針】",
-  "",
-  "- 事実に基づいて書く",
-  "- 宣伝文句をそのまま使わない",
-  "- 難しい専門用語はできるだけ分かりやすく言い換える",
-  "- 200～300文字程度を目安にする",
-  "- 感想や評価は勝手に付け加えない",
-  "- ISBN、価格、発売日などは、内容理解に必要でなければ本文には入れない",
-].join("\n");
-
-function createTitleAnalysisPrompt(input: { title: string; author: string; publisher: string; isbn: string | null }) {
+function createBookAnalysisPrompt(input: { title: string; author: string; publisher: string; isbn: string | null; hasPhoto: boolean }) {
   const bookInformation = [
     input.title.trim() && `タイトル：${input.title.trim()}`,
     input.author.trim() && `著者名：${input.author.trim()}`,
@@ -234,15 +180,18 @@ function createTitleAnalysisPrompt(input: { title: string; author: string; publi
     input.isbn && `ISBN：${input.isbn}`,
   ].filter(Boolean);
   return [
-    "次の書籍情報に該当する本をWebで調べ、読書記録アプリに保存するための情報を作成してください。",
+    input.hasPhoto
+      ? "添付した本の表紙画像と次の書籍情報をもとに本を特定し、Webで調べて、読書記録アプリに保存するための情報を作成してください。"
+      : "次の書籍情報に該当する本をWebで調べ、読書記録アプリに保存するための情報を作成してください。",
     "",
     "【入力済みの書籍情報（手入力・ISBNバーコードから取得）】",
     "",
-    ...bookInformation,
+    ...(bookInformation.length ? bookInformation : ["入力済みの書籍情報はありません。添付した表紙画像から調べてください。"]),
     "",
     "【調査】",
     "",
-    "- 入力済みのタイトル・著者名・出版社名・ISBNを照合し、該当する本の正式な書名、著者名、出版社などを確認してください。",
+    ...(input.hasPhoto ? ["- 添付した表紙画像から書名・著者名・出版社などを読み取り、書誌情報と照合してください。"] : []),
+    "- 提供された情報を照合し、該当する本の正式な書名、著者名、出版社などを確認してください。",
     "- ISBNがある場合は、そのISBNの書籍と版を確認してください。入力された書誌情報と食い違う場合は、矛盾を伝えて確認を求め、勝手に同じ本と判断しないでください。",
     "- 情報が足りず本を特定できない場合は、追加情報を尋ねてください。",
     "- 出版社の公式書籍ページ、著者の公式情報など、信頼できる情報を優先してください。",
@@ -368,8 +317,6 @@ export function BookLibrary() {
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraReady, setCameraReady] = useState(false);
   const [preparedShare, setPreparedShare] = useState<PreparedShare | null>(null);
-  const [sharing, setSharing] = useState(false);
-  const [promptCopied, setPromptCopied] = useState(false);
   const [titlePromptCopied, setTitlePromptCopied] = useState(false);
   const [titleSharing, setTitleSharing] = useState(false);
   const [pastingCover, setPastingCover] = useState(false);
@@ -435,8 +382,6 @@ export function BookLibrary() {
       : null;
   const activeCategoryOption =
     bookCategories.find((category) => category.id === activeCategory) ?? bookCategories[0];
-  const registrationCategoryOption =
-    bookCategories.find((category) => category.id === registrationCategory) ?? bookCategories[0];
   const visibleBooks = books.filter((book) => getBookCategory(book) === activeCategory);
   const duplicateCandidates: DuplicateCandidate[] = books.flatMap((book) => {
     if (book.id === editingBookId) return [];
@@ -705,7 +650,6 @@ export function BookLibrary() {
     setCrop(initialCrop);
     setPhotoAspectRatio(2 / 3);
     setCropMessage("");
-    setPromptCopied(false);
     setTitlePromptCopied(false);
     titleRef.current = "";
     setTitle("");
@@ -737,6 +681,7 @@ export function BookLibrary() {
     try {
       const normalized = await normalizePhoto(source);
       const result = await detectBookCrop(normalized);
+      setTitlePromptCopied(false);
       setPhoto(normalized);
       setPhotoUrl((current) => {
         if (current) URL.revokeObjectURL(current);
@@ -830,7 +775,6 @@ export function BookLibrary() {
         ? "保存時の元画像から表紙を修正できます。"
         : "この本には元画像がないため、現在の表紙の範囲内で調整できます。",
     );
-    setPromptCopied(false);
     setTitlePromptCopied(false);
     titleRef.current = selectedBook.title;
     setTitle(selectedBook.title);
@@ -1473,57 +1417,34 @@ export function BookLibrary() {
     );
   }
 
-  async function copyAnalysisPrompt() {
-    if (!navigator.clipboard?.writeText) {
-      setError("この端末またはブラウザは文章のコピーに対応していません。");
+  async function shareOrCopyBookAnalysisPrompt() {
+    const trimmedTitle = title.trim();
+    if (!trimmedTitle && !author.trim() && !publisher.trim() && !isbn && !photo) {
+      setError("表紙を撮影するか、タイトル・著者名・出版社名のいずれかを入力するか、ISBNバーコードを読み取ってください。");
       return;
     }
-    try {
-      await navigator.clipboard.writeText(bookAnalysisPrompt);
-      setPromptCopied(true);
-      setError("");
-    } catch {
-      setError("分析用の文章をコピーできませんでした。もう一度お試しください。");
-    }
-  }
-
-  async function shareCover() {
-    if (!shareFile) {
+    if (photo && !shareFile) {
       setError("共有する画像を準備しています。少し待ってからもう一度お試しください。");
       return;
     }
-    if (!navigator.share || (navigator.canShare && !navigator.canShare({ files: [shareFile] }))) {
-      setError("この端末またはブラウザは画像の共有に対応していません。");
-      return;
-    }
-
-    setSharing(true);
-    setError("");
-    try {
-      await navigator.share({
-        files: [shareFile],
-        title: "本の表紙",
-        text: bookAnalysisPrompt,
-      });
-    } catch (shareError) {
-      if (shareError instanceof DOMException && shareError.name === "AbortError") return;
-      setError("画像を共有できませんでした。もう一度お試しください。");
-    } finally {
-      setSharing(false);
-    }
-  }
-
-  async function shareOrCopyTitleAnalysisPrompt() {
-    const trimmedTitle = title.trim();
-    if (!trimmedTitle && !author.trim() && !publisher.trim() && !isbn) {
-      setError("タイトル・著者名・出版社名のいずれかを入力するか、ISBNバーコードを読み取ってください。");
-      return;
-    }
-    const prompt = createTitleAnalysisPrompt({ title, author, publisher, isbn });
+    const prompt = createBookAnalysisPrompt({ title, author, publisher, isbn, hasPhoto: Boolean(photo) });
     setTitleSharing(true);
     setError("");
     try {
-      if (navigator.share) {
+      if (shareFile) {
+        if (navigator.share && (!navigator.canShare || navigator.canShare({ files: [shareFile] }))) {
+          try {
+            await navigator.share({
+              files: [shareFile],
+              title: `${trimmedTitle || isbn || author.trim() || publisher.trim() || "本の表紙"}を調べる`,
+              text: prompt,
+            });
+            return;
+          } catch (shareError) {
+            if (shareError instanceof DOMException && shareError.name === "AbortError") return;
+          }
+        }
+      } else if (navigator.share) {
         try {
           await navigator.share({ title: `${trimmedTitle || isbn || author.trim() || publisher.trim()}を調べる`, text: prompt });
           return;
@@ -1533,11 +1454,12 @@ export function BookLibrary() {
       }
 
       if (!navigator.clipboard?.writeText) {
-        setError("共有も文章のコピーも利用できませんでした。");
+        setError(shareFile ? "画像付き共有と調査文のコピーを利用できませんでした。ChatGPTで表紙画像を手動で添付してください。" : "共有も文章のコピーも利用できませんでした。");
         return;
       }
       await navigator.clipboard.writeText(prompt);
       setTitlePromptCopied(true);
+      if (shareFile) setError("画像付き共有に対応していないため、調査文をコピーしました。ChatGPTで表紙画像を添付し、調査文を貼り付けてください。");
     } catch {
       setError("調査文を共有・コピーできませんでした。もう一度お試しください。");
     } finally {
@@ -2122,7 +2044,17 @@ export function BookLibrary() {
               <p className="eyebrow">{editingBookId ? "EDIT COVER" : "NEW BOOK"}</p>
               {editingBookId && <h2>修正</h2>}
               {!editingBookId && (
-                <p className="registration-category">登録先：{registrationCategoryOption.label}</p>
+                <label className="registration-category">
+                  登録先：
+                  <select
+                    value={registrationCategory}
+                    onChange={(event) => setRegistrationCategory(event.target.value as BookCategory)}
+                  >
+                    {bookCategories.map((category) => (
+                      <option key={category.id} value={category.id}>{category.label}</option>
+                    ))}
+                  </select>
+                </label>
               )}
             </div>
             <button className="close-button" type="button" onClick={closeAddDialog} aria-label="閉じる">×</button>
@@ -2245,6 +2177,7 @@ export function BookLibrary() {
               </div>
               <div className="retake-actions">
                 <button className="retake" type="button" onClick={() => {
+                  setTitlePromptCopied(false);
                   setPhoto(null);
                   setPhotoUrl((current) => {
                     if (current) URL.revokeObjectURL(current);
@@ -2266,28 +2199,6 @@ export function BookLibrary() {
             </>
           )}
 
-          {photo && (
-            <div className="share-panel">
-              <button
-                className="copy-prompt-button"
-                type="button"
-                onClick={() => void copyAnalysisPrompt()}
-              >
-                {promptCopied ? "コピーしました" : "分析用の文章をコピー"}
-              </button>
-              <small className="copy-instruction">ChatGPTに貼り付けてください。</small>
-              <button
-                className="share-button"
-                type="button"
-                onClick={() => void shareCover()}
-                disabled={!shareFile || sharing}
-              >
-                {sharing ? "共有画面を開いています…" : shareFile ? "画像を共有" : "共有画像を準備中…"}
-              </button>
-              <small>共有先でChatGPTを選ぶと、表紙画像を渡せます。</small>
-            </div>
-          )}
-
           <div className="fields">
             <label><span>タイトル <small>任意</small></span><input value={title} onChange={(event) => {
               titleRef.current = event.target.value;
@@ -2307,16 +2218,16 @@ export function BookLibrary() {
             }} placeholder="ISBNから自動入力、または手入力" maxLength={160} /></label>
             <label><span>本の内容 <small>任意</small></span><textarea value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={1000} rows={3} /></label>
             <div className="title-analysis-panel">
-              <small>入力済みのタイトル・著者名・出版社名・ISBNをもとに、正式タイトル・著者名・出版社名・本の要約・表紙画像をChatGPTで調べます。</small>
+              <small>表紙画像または入力済みのタイトル・著者名・出版社名・ISBNをもとに、正式タイトル・著者名・出版社名・本の要約・表紙画像をChatGPTで調べます。</small>
               <button
                 className="share-button"
                 type="button"
-                onClick={() => void shareOrCopyTitleAnalysisPrompt()}
-                disabled={!(title.trim() || author.trim() || publisher.trim() || isbn) || titleSharing || lookingUpBook}
+                onClick={() => void shareOrCopyBookAnalysisPrompt()}
+                disabled={!(title.trim() || author.trim() || publisher.trim() || isbn || photo) || titleSharing || lookingUpBook || (Boolean(photo) && !shareFile)}
               >
-                {titleSharing ? "共有・コピー中…" : titlePromptCopied ? "調査文をコピーしました" : "ChatGPTで本を調べる"}
+                {titleSharing ? "共有・コピー中…" : photo && !shareFile ? "共有画像を準備中…" : titlePromptCopied ? "調査文をコピーしました" : "ChatGPTで本を調べる"}
               </button>
-              <small>{titlePromptCopied ? "ChatGPTに調査文を貼り付けてください。" : "共有先でChatGPTを選んでください。共有できない場合は調査文をコピーします。"}</small>
+              <small>{photo && titlePromptCopied ? "ChatGPTで表紙画像を添付し、コピーした調査文を貼り付けてください。" : photo ? "表紙画像と調査文を共有します。共有先でChatGPTを選んでください。" : titlePromptCopied ? "ChatGPTに調査文を貼り付けてください。" : "共有先でChatGPTを選んでください。共有できない場合は調査文をコピーします。"}</small>
               <button
                 className="paste-cover-button"
                 type="button"
