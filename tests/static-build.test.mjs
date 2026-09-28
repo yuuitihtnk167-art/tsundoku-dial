@@ -71,7 +71,7 @@ test("GitHub Pages用の静的アプリを生成する", async () => {
   assert.match(app, /startCategoryRegistrationPress/);
   assert.match(app, /moveCategoryRegistrationPress/);
   assert.match(app, /登録先：\{registrationCategoryOption\.label\}/);
-  assert.match(app, /長押しでその分類に本を登録/);
+  assert.match(app, /長押しでもその分類に本を登録/);
   assert.match(app, /className=\{deleteDropActive \? "category-delete-zone is-drop-active"/);
   assert.match(app, /今読んでいる/);
   assert.match(app, /もう一度読みたい/);
@@ -181,6 +181,6 @@ test("GitHub Pages用の静的アプリを生成する", async () => {
   const shelfViewIndex = app.indexOf(') : bookViewMode === "shelf" ? (');
   const emptyLibraryIndex = app.indexOf(') : books.length === 0 ? (');
   assert.ok(shelfViewIndex >= 0 && shelfViewIndex < emptyLibraryIndex);
-  assert.match(serviceWorker, /tsundoku-dial-v37/);
+  assert.match(serviceWorker, /tsundoku-dial-v39/);
   assert.match(serviceWorker, /caches\.delete/);
 });
