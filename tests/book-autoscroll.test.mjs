@@ -17,7 +17,7 @@ const compiled = transpileModule(helpers + scrollFunction, {
   compilerOptions: { module: ModuleKind.ESNext, target: ScriptTarget.ES2022 },
 }).outputText;
 
-function createDrag({ x = 395, inShelf = true, dropType = "category", moved = true } = {}) {
+function createDrag({ x = 395, y = 300, inShelf = true, inCategory = false, dropType = "category", moved = true, scrollable = true } = {}) {
   const frames = [];
   const targets = [];
   const pageScrolls = [];
@@ -27,15 +27,17 @@ function createDrag({ x = 395, inShelf = true, dropType = "category", moved = tr
     scrollBy({ left }) { this.scrollLeft += left; },
   };
   const dropZone = { dataset: { bookDrop: dropType } };
+  const surface = { inShelf, inCategory };
   const context = {
     bookAutoScrollFrameRef: { current: null },
-    bookPointerStartRef: { current: { currentX: x, currentY: 300 } },
+    bookPointerStartRef: { current: { currentX: x, currentY: y } },
     draggingBookIdRef: { current: "book-1" },
     dragMovedRef: { current: moved },
     document: {
       elementFromPoint: () => ({
         closest(selector) {
-          if (selector === ".bookshelf-row-scroll") return inShelf ? row : null;
+          if (selector === ".bookshelf-row-scroll") return surface.inShelf ? row : null;
+          if (selector === ".bookshelf-category") return surface.inCategory ? {} : null;
           if (selector === "[data-book-drop]") return dropZone;
           return null;
         },
@@ -45,13 +47,13 @@ function createDrag({ x = 395, inShelf = true, dropType = "category", moved = tr
       innerHeight: 600,
       scrollY: 0,
       requestAnimationFrame(callback) { frames.push(callback); return frames.length; },
-      scrollBy(delta) { pageScrolls.push(delta); },
+      scrollBy(delta) { pageScrolls.push(delta); if (scrollable) this.scrollY += delta.top; },
     },
     updateBookDragTargets: (...args) => targets.push(args),
   };
   vm.runInNewContext(compiled, context);
   context.startBookAutoScroll();
-  return { context, row, frames, targets, pageScrolls };
+  return { context, row, frames, targets, pageScrolls, surface };
 }
 
 for (const [direction, x, sign] of [["右", 395, 1], ["左", 5, -1]]) {
@@ -100,4 +102,36 @@ test("つかみ直して移動開始待ちに戻ると、予約済みのスク�
   assert.equal(row.scrollLeft, 400);
   assert.equal(targets.length, 0);
   assert.equal(frames.length, 0);
+});
+
+test("下端で保持し、本の列が指の下から外れて分類枠の余白になってもスクロールが続く", () => {
+  const { context, frames, targets, pageScrolls, surface } = createDrag({ x: 200, y: 580, inCategory: true });
+  frames.shift()();
+  assert.equal(pageScrolls.length, 1);
+  surface.inShelf = false;
+  for (let index = 0; index < 3; index += 1) {
+    assert.equal(frames.length, 1);
+    frames.shift()();
+  }
+  assert.deepEqual(pageScrolls.map((delta) => delta.top), [87, 87, 87, 87]);
+  assert.equal(targets.length, 4);
+  assert.deepEqual(targets[3], [200, 580, "book-1"]);
+  assert.equal(context.window.scrollY, 348);
+  context.draggingBookIdRef.current = null;
+  frames.shift()();
+  assert.equal(frames.length, 0);
+});
+
+test("分類枠の余白上からも下方向のスクロールを開始できる", () => {
+  const { frames, pageScrolls } = createDrag({ x: 200, y: 580, inShelf: false, inCategory: true });
+  frames.shift()();
+  assert.equal(pageScrolls[0].top, 87);
+  assert.equal(frames.length, 1);
+});
+
+test("画面下端に到達してそれ以上動かない場合はスクロールを予約し続けない", () => {
+  const { frames, targets } = createDrag({ x: 200, y: 580, inShelf: false, inCategory: true, scrollable: false });
+  frames.shift()();
+  assert.equal(frames.length, 0);
+  assert.equal(targets.length, 0);
 });
