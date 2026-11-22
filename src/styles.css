@@ -106,6 +106,8 @@ button { color: inherit; }
 .book-card.is-selected { touch-action: none; }
 .book-card.is-selected .cover-wrap { outline: 3px solid var(--lime); outline-offset: 4px; transform: translateY(-4px); }
 .book-card.is-dragging { opacity: .28; }
+.book-category-label { display: block; margin-bottom: 8px; color: var(--forest); font-size: 11px; font-weight: 700; line-height: 1.5; overflow-wrap: anywhere; }
+.book-card.is-compact .book-category-label { grid-column: 1 / -1; margin-bottom: 0; }
 .cover-wrap { display: block; aspect-ratio: 2 / 3; overflow: hidden; border-radius: 3px 10px 10px 3px; background: #d9d7cd; box-shadow: -5px 5px 0 #c7c4b9, 0 16px 30px rgba(33,40,35,.16); transition: transform .22s ease, box-shadow .22s ease; }
 .book-card:hover .cover-wrap, .book-card:focus-visible .cover-wrap { transform: translateY(-7px) rotate(-1deg); box-shadow: -5px 6px 0 #c7c4b9, 0 22px 36px rgba(33,40,35,.22); }
 .cover-wrap img { width: 100%; height: 100%; object-fit: cover; display: block; }

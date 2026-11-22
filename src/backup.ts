@@ -89,6 +89,7 @@ export async function createCompleteBackup(books: StoredBook[], createdAt = new 
       createdAt: book.createdAt,
       sortOrder: book.sortOrder,
       category: book.category,
+      owned: book.owned,
       cover: await encodeImage(book.cover),
       original: book.original ? await encodeImage(book.original) : undefined,
       crop: book.crop,
@@ -167,6 +168,12 @@ async function parseBook(value: unknown): Promise<StoredBook> {
   if (value.category !== undefined && !categories.includes(value.category as BookCategory)) {
     throw new Error("分類が正しくありません。");
   }
+  if (value.owned !== undefined && typeof value.owned !== "boolean") {
+    throw new Error("所有情報が正しくありません。");
+  }
+  if (value.owned === true && value.category !== "owned" && value.category !== "reading") {
+    throw new Error("所有本の分類が正しくありません。");
+  }
 
   return {
     id,
@@ -178,6 +185,7 @@ async function parseBook(value: unknown): Promise<StoredBook> {
     createdAt,
     sortOrder: value.sortOrder as number | undefined,
     category: value.category as BookCategory | undefined,
+    ...(value.owned === undefined ? {} : { owned: value.owned as boolean }),
     cover: await decodeImage(value.cover),
     original: value.original === undefined ? undefined : await decodeImage(value.original),
     crop: validateCrop(value.crop),

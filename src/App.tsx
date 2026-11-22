@@ -35,6 +35,7 @@ import {
   type DragDropTarget,
 } from "./book-drop";
 import { lookupBookByIsbn } from "./book-lookup";
+import { canSetBookCategory, isOwnedBook } from "./book-category";
 import { getTitleMatch } from "./book-match";
 import { parseBookImport } from "./book-import";
 import { IsbnScanner } from "./IsbnScanner";
@@ -383,6 +384,10 @@ export function BookLibrary() {
   const activeCategoryOption =
     bookCategories.find((category) => category.id === activeCategory) ?? bookCategories[0];
   const visibleBooks = books.filter((book) => getBookCategory(book) === activeCategory);
+  const editingBook = books.find((book) => book.id === editingBookId);
+  const registrationCategories = bookCategories.filter(
+    (category) => !editingBook || canSetBookCategory(editingBook, category.id),
+  );
   const duplicateCandidates: DuplicateCandidate[] = books.flatMap((book) => {
     if (book.id === editingBookId) return [];
     const reasons: string[] = [];
@@ -764,6 +769,7 @@ export function BookLibrary() {
     if (!selectedBook) return;
     const original = selectedBook.original ?? selectedBook.cover;
     setEditingBookId(selectedBook.id);
+    setRegistrationCategory(getBookCategory(selectedBook));
     setPhoto(original);
     setPhotoUrl((current) => {
       if (current) URL.revokeObjectURL(current);
@@ -949,6 +955,7 @@ export function BookLibrary() {
       if (candidate.dataset.bookDrop !== "category") return false;
       const category = candidate.dataset.categoryDrop as BookCategory | undefined;
       return isAvailableCategoryDrop(category, draggedCategory) &&
+        Boolean(draggedBook && category && canSetBookCategory(draggedBook, category)) &&
         bookCategories.some((option) => option.id === category);
     };
     const directDropElement = element?.closest<HTMLElement>("[data-book-drop]") ?? null;
@@ -1269,14 +1276,15 @@ export function BookLibrary() {
   ) {
     const book = booksRef.current.find((item) => item.id === bookId);
     if (!book) return;
+    let storedBook: StoredBook;
     try {
-      await updateBookCategory(bookId, category);
+      storedBook = await updateBookCategory(bookId, category);
     } catch (categoryError) {
       setError(categoryError instanceof Error ? categoryError.message : "本を分類できませんでした。");
       return;
     }
 
-    const categorizedBook = { ...book, category };
+    const categorizedBook = { ...book, ...storedBook };
     const next = booksRef.current.filter((item) => item.id !== bookId);
     const targetIndex = targetBookId
       ? next.findIndex((item) => item.id === targetBookId)
@@ -1393,6 +1401,10 @@ export function BookLibrary() {
         onPointerUp={(event) => finishBookPress(event, "release")}
         onPointerCancel={(event) => finishBookPress(event, "cancel")}
       >
+        <span className="book-category-label">
+          {bookCategories.find((category) => category.id === getBookCategory(book))?.label}
+          {isOwnedBook(book) && getBookCategory(book) === "reading" && "（持っている）"}
+        </span>
         <span className="cover-wrap">
           <img
             src={book.coverUrl}
@@ -1564,7 +1576,7 @@ export function BookLibrary() {
         isbn,
       };
       const storedBook = editingBookId
-        ? await updateBook({ id: editingBookId, ...values })
+        ? await updateBook({ id: editingBookId, ...values, category: registrationCategory })
         : await addBook({ ...values, category: registrationCategory });
       const coverUrl = URL.createObjectURL(storedBook.cover);
       coverUrlsRef.current.push(coverUrl);
@@ -2043,19 +2055,17 @@ export function BookLibrary() {
             <div>
               <p className="eyebrow">{editingBookId ? "EDIT COVER" : "NEW BOOK"}</p>
               {editingBookId && <h2>修正</h2>}
-              {!editingBookId && (
-                <label className="registration-category">
-                  登録先：
-                  <select
-                    value={registrationCategory}
-                    onChange={(event) => setRegistrationCategory(event.target.value as BookCategory)}
-                  >
-                    {bookCategories.map((category) => (
-                      <option key={category.id} value={category.id}>{category.label}</option>
-                    ))}
-                  </select>
-                </label>
-              )}
+              <label className="registration-category">
+                登録先：
+                <select
+                  value={registrationCategory}
+                  onChange={(event) => setRegistrationCategory(event.target.value as BookCategory)}
+                >
+                  {registrationCategories.map((category) => (
+                    <option key={category.id} value={category.id}>{category.label}</option>
+                  ))}
+                </select>
+              </label>
             </div>
             <button className="close-button" type="button" onClick={closeAddDialog} aria-label="閉じる">×</button>
           </div>
