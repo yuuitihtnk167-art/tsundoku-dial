@@ -1,4 +1,5 @@
 import type { Crop } from "./image";
+import { bookCategoryChange } from "./book-category";
 
 export type BookCategory = "unclassified" | "reading" | "reread" | "owned" | "read";
 
@@ -12,6 +13,7 @@ export type StoredBook = {
   createdAt: string;
   sortOrder?: number;
   category?: BookCategory;
+  owned?: boolean;
   cover: Blob;
   original?: Blob;
   crop?: Crop;
@@ -95,6 +97,7 @@ export async function addBook(
       createdAt: new Date().toISOString(),
       sortOrder: highestOrder + 1,
       category: input.category,
+      owned: input.category === "owned",
       cover: input.cover,
       original: input.original,
       crop: input.crop,
@@ -107,7 +110,7 @@ export async function addBook(
 }
 
 export async function updateBook(
-  input: Pick<StoredBook, "id" | "title" | "author" | "publisher" | "notes" | "isbn" | "cover" | "original" | "crop">,
+  input: Pick<StoredBook, "id" | "title" | "author" | "publisher" | "notes" | "isbn" | "cover" | "original" | "crop"> & { category: BookCategory },
 ) {
   const database = await openDatabase();
   try {
@@ -118,7 +121,7 @@ export async function updateBook(
     );
     if (!current) throw new Error("更新する本が見つかりませんでした。");
 
-    const book: StoredBook = { ...current, ...input };
+    const book: StoredBook = { ...current, ...input, ...bookCategoryChange(current, input.category) };
     await requestResult(store.put(book));
     return book;
   } finally {
@@ -135,7 +138,7 @@ export async function updateBookCategory(id: string, category: BookCategory) {
       store.get(id) as IDBRequest<StoredBook | undefined>,
     );
     if (!current) throw new Error("分類する本が見つかりませんでした。");
-    const book: StoredBook = { ...current, category };
+    const book: StoredBook = { ...current, ...bookCategoryChange(current, category) };
     await requestResult(store.put(book));
     return book;
   } finally {

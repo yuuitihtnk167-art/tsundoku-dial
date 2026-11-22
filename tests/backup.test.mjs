@@ -70,6 +70,22 @@ test("破損した画像を復元前に拒否する", async () => {
   );
 });
 
+test("読書中の所有情報をバックアップから復元できる", async () => {
+  const { createCompleteBackup, parseCompleteBackup } = await loadBackupModule();
+  const book = { ...sampleBook(), owned: true };
+  const parsed = await parseCompleteBackup(await createCompleteBackup([book]));
+  assert.equal(parsed.books[0].category, "reading");
+  assert.equal(parsed.books[0].owned, true);
+});
+
+test("所有情報が不正なバックアップを拒否する", async () => {
+  const { createCompleteBackup, parseCompleteBackup } = await loadBackupModule();
+  for (const change of [{ owned: "true" }, { owned: true, category: "read" }]) {
+    const backup = await createCompleteBackup([{ ...sampleBook(), ...change }]);
+    await assert.rejects(parseCompleteBackup(backup), /所有/);
+  }
+});
+
 test("異なる形式と重複した書籍IDを拒否する", async () => {
   const { createCompleteBackup, parseCompleteBackup } = await loadBackupModule();
   await assert.rejects(
