@@ -73,7 +73,7 @@ test("12px動かして初めて移動を開始し、その後は小さな動き�
   assert.equal(frames.length, 1);
   frames.shift()();
   assert.ok(row.scrollLeft > 400);
-  assert.ok(row.scrollLeft - 400 <= 12);
+  assert.equal(row.scrollLeft - 400, 102);
   move(1);
   assert.equal(positions.length, 2);
   assert.deepEqual(starts, [true]);

@@ -244,8 +244,8 @@ function createBookAnalysisPrompt(input: { title: string; author: string; publis
 }
 
 const minimumCropSize = 8;
-const bookDragScrollEdge = 48;
-const bookDragMaximumScrollSpeed = 12;
+const bookDragScrollEdge = 88;
+const bookDragMaximumScrollSpeed = 112;
 const bookDragStartDistance = 12;
 
 function clamp(value: number, minimum: number, maximum: number) {
