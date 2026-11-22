@@ -1847,12 +1847,6 @@ export function BookLibrary() {
       )}
 
       <section className="shelf" aria-label="本棚">
-        <div className="section-heading">
-          <div className="shelf-actions">
-            <p>{bookViewMode === "shelf" ? "分類名を長押しして本を登録。ドラッグで並び替え・分類・削除" : "ドラッグで並び替え・分類・削除（タッチは長押し）"}</p>
-          </div>
-        </div>
-
         {classificationMessage && (
           <p className="classification-message" role="status">{classificationMessage}</p>
         )}
