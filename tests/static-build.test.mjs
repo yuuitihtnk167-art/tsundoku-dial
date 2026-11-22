@@ -48,7 +48,7 @@ test("GitHub Pages用の静的アプリを生成する", async () => {
   assert.match(app, /}, 300\)/);
   assert.match(app, /distance > 18/);
   assert.match(app, /getBookDragScrollDelta/);
-  assert.match(app, /bookDragMaximumScrollSpeed = 112/);
+  assert.match(app, /bookDragMaximumScrollSpeed = 12/);
   assert.match(app, /requestAnimationFrame\(scrollFrame\)/);
   assert.match(app, /window\.innerHeight,\s+window\.innerHeight/);
   assert.match(app, /window\.scrollBy\(\{ top: scrollDelta, behavior: "instant" \}\)/);
