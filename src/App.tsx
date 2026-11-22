@@ -1401,10 +1401,6 @@ export function BookLibrary() {
         onPointerUp={(event) => finishBookPress(event, "release")}
         onPointerCancel={(event) => finishBookPress(event, "cancel")}
       >
-        <span className="book-category-label">
-          {bookCategories.find((category) => category.id === getBookCategory(book))?.label}
-          {isOwnedBook(book) && getBookCategory(book) === "reading" && "（持っている）"}
-        </span>
         <span className="cover-wrap">
           <img
             src={book.coverUrl}
@@ -2274,6 +2270,10 @@ export function BookLibrary() {
         {selectedBook && (
           <section className="detail-card" role="dialog" aria-modal="true" aria-labelledby="book-detail-title">
             <button className="close-button" type="button" onClick={() => setSelectedBook(null)} aria-label="詳細を閉じる">×</button>
+            <p className="detail-category">
+              登録先：{bookCategories.find((category) => category.id === getBookCategory(selectedBook))?.label}
+              {isOwnedBook(selectedBook) && getBookCategory(selectedBook) === "reading" && "（持っている）"}
+            </p>
             <img src={selectedBook.coverUrl} alt={`${selectedBook.title}の表紙`} />
             <div className="detail-copy">
               <p className="eyebrow">BOOK DETAIL</p>
