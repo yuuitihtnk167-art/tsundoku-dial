@@ -1738,7 +1738,7 @@ export function BookLibrary() {
             aria-haspopup="dialog"
             onClick={() => openAddDialog(activeCategory)}
           >
-            <span aria-hidden="true">＋</span> 本を登録する
+            <span aria-hidden="true">＋</span> 登録
           </button>
           <button
             className="search-button"
@@ -1888,7 +1888,7 @@ export function BookLibrary() {
           <div className="empty-state">
             <div className="empty-books" aria-hidden="true"><i /><i /><i /></div>
             <h3>最初の一冊を積んでみましょう</h3>
-            <p>「本を登録する」ボタンから、最初の一冊を登録できます。</p>
+            <p>「登録」ボタンから、最初の一冊を登録できます。</p>
           </div>
         ) : visibleBooks.length === 0 ? (
           <div className="category-empty">
