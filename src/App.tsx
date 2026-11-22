@@ -1751,10 +1751,6 @@ export function BookLibrary() {
   return (
     <main>
       <header className="topbar" id="top">
-        <a className="brand" href="#top" aria-label="積読ダイヤル ホーム">
-          <span className="brand-mark" aria-hidden="true">本</span>
-          <span>積読ダイヤル</span>
-        </a>
         <div className="topbar-controls">
           <div className="topbar-actions">
           <button
@@ -1783,7 +1779,6 @@ export function BookLibrary() {
             <span aria-hidden="true">⚙</span> 設定
           </button>
           </div>
-          {(draggingBookId || selectedBookId) && (
             <div
               className={deleteDropActive ? "header-trash-target is-drop-active" : "header-trash-target"}
               data-book-drop="delete"
@@ -1799,7 +1794,6 @@ export function BookLibrary() {
                 <span>{deleteDropActive ? "削除を確認してください" : "離すと削除できます"}</span>
               </span>
             </div>
-          )}
         </div>
       </header>
 

@@ -105,7 +105,7 @@ test("GitHub Pages用の静的アプリを生成する", async () => {
   assert.doesNotMatch(styles, /\.classification-tray/);
   assert.match(styles, /\.category-zone-panel/);
   assert.match(styles, /grid-template-rows: repeat\(2, 1fr\)/);
-  assert.match(styles, /\.header-trash-target \{ position: absolute;/);
+  assert.match(styles, /\.header-trash-target \{ display: grid;/);
   assert.match(app.slice(app.indexOf('<header className="topbar"'), app.indexOf('</header>')), /data-book-drop="delete"/);
   assert.equal((app.match(/data-book-drop="delete"/g) ?? []).length, 1);
   assert.match(app, /data-book-id=\{book\.id\}/);
@@ -126,7 +126,8 @@ test("GitHub Pages用の静的アプリを生成する", async () => {
   assert.match(app, /tsundoku-dial-book-display-density/);
   assert.match(app, /shelfCategoryOrder/);
   assert.match(app, /data-category-row=\{category\}/);
-  assert.match(app, /\(draggingBookId \|\| selectedBookId\) &&/);
+  assert.doesNotMatch(app, /\(draggingBookId \|\| selectedBookId\) &&/);
+  assert.doesNotMatch(app, /className="brand"|className="brand-mark"/);
   assert.match(app, /preventScrollWhileDragging/);
   assert.match(app, /if \(draggingBookIdRef\.current\) event\.preventDefault\(\)/);
   assert.doesNotMatch(app, /if \(classificationPanelOpen \|\| draggingBookIdRef\.current\) event\.preventDefault\(\)/);

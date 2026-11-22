@@ -35,7 +35,8 @@ button { color: inherit; }
   gap: 12px;
   align-items: center;
   justify-content: space-between;
-  width: min(920px, calc(100% - 40px));
+  width: fit-content;
+  max-width: calc(100% - 40px);
   margin: 16px auto 0;
   padding: 12px 14px;
   border: 2px solid var(--brass);
@@ -44,12 +45,10 @@ button { color: inherit; }
   backdrop-filter: blur(16px);
   box-shadow: inset 0 0 0 2px #f8edcf, 0 8px 24px rgba(73,49,31,.18);
 }
-.brand { display: flex; align-items: center; gap: 10px; color: var(--forest); font-family: Georgia, "Yu Mincho", serif; font-size: 19px; font-weight: 700; text-decoration: none; letter-spacing: .04em; }
-.brand-mark { display: grid; place-items: center; width: 35px; height: 35px; border: 2px solid var(--brass); border-radius: 7px; background: var(--forest); color: var(--lime); font-family: serif; font-size: 14px; box-shadow: inset 0 0 0 2px rgba(255,255,255,.12); }
 .topbar-actions { display: flex; align-items: center; gap: 9px; }
-.topbar-controls { position: relative; min-width: 0; }
+.topbar-controls { display: grid; gap: 12px; min-width: 0; }
 .topbar-actions > button { height: var(--header-button-height); }
-.header-trash-target { position: absolute; top: calc(100% + 12px); left: 0; display: grid; grid-template-columns: 26px auto minmax(0, 1fr); align-items: center; gap: 8px; width: 100%; height: var(--header-button-height); padding: 6px 12px; border: 2px solid var(--brass); border-radius: 9px; background: linear-gradient(#fff7df, #ded0ab); color: var(--forest); font-size: 12px; font-weight: 800; box-shadow: inset 0 0 0 2px rgba(255,255,255,.55), 0 4px 0 #75572d, 0 7px 14px rgba(73,49,31,.18); }
+.header-trash-target { display: grid; grid-template-columns: 26px auto minmax(0, 1fr); align-items: center; gap: 8px; width: 100%; height: var(--header-button-height); padding: 6px 12px; border: 2px solid var(--brass); border-radius: 9px; background: linear-gradient(#fff7df, #ded0ab); color: var(--forest); font-size: 12px; font-weight: 800; box-shadow: inset 0 0 0 2px rgba(255,255,255,.55), 0 4px 0 #75572d, 0 7px 14px rgba(73,49,31,.18); }
 .header-trash-target svg { width: 26px; height: 26px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .header-trash-label { white-space: nowrap; }
 .header-trash-help { display: grid; justify-self: end; min-width: 0; font-size: clamp(9px, 2.8vw, 11px); font-weight: 600; line-height: 1.25; }
@@ -318,9 +317,7 @@ button { color: inherit; }
 }
 
 @media (max-width: 560px) {
-  .topbar { --header-button-height: 46px; width: calc(100% - 28px); padding: 13px 0; }
-  .brand { font-size: 14px; }
-  .brand-mark { width: 31px; height: 31px; }
+  .topbar { --header-button-height: 46px; width: calc(100% - 28px); max-width: none; padding: 13px 0; }
   .topbar { padding: 9px 10px; flex-wrap: wrap; gap: 10px; }
   .topbar-actions { gap: 6px; }
   .add-button, .search-button, .settings-button { padding: 9px 6px; font-size: 12px; }
