@@ -75,7 +75,7 @@ test("GitHub Pages用の静的アプリを生成する", async () => {
   assert.match(app, /<label className="registration-category">/);
   assert.match(app, /<select\s+value=\{registrationCategory\}/);
   assert.match(app, /長押しでもその分類に本を登録/);
-  assert.match(app, /className=\{deleteDropActive \? "category-delete-zone is-drop-active"/);
+  assert.match(app, /className=\{deleteDropActive \? "header-trash-target is-drop-active"/);
   assert.match(app, /今読んでいる/);
   assert.match(app, /もう一度読みたい/);
   assert.match(app, /持っている/);
@@ -104,12 +104,12 @@ test("GitHub Pages用の静的アプリを生成する", async () => {
   assert.doesNotMatch(styles, /\.dial-channel-window/);
   assert.doesNotMatch(styles, /\.classification-tray/);
   assert.match(styles, /\.category-zone-panel/);
-  assert.match(styles, /height: clamp\(420px, 70svh, 560px\)/);
-  assert.match(styles, /grid-template-rows: repeat\(3, 1fr\)/);
-  assert.match(styles, /\.category-delete-zone/);
-  assert.match(styles, /\.shelf-trash-target/);
+  assert.match(styles, /grid-template-rows: repeat\(2, 1fr\)/);
+  assert.match(styles, /\.header-trash-target \{ position: absolute;/);
+  assert.match(app.slice(app.indexOf('<header className="topbar"'), app.indexOf('</header>')), /data-book-drop="delete"/);
+  assert.equal((app.match(/data-book-drop="delete"/g) ?? []).length, 1);
   assert.match(app, /data-book-id=\{book\.id\}/);
-  assert.match(app, /shelf-trash-target/);
+  assert.match(app, /header-trash-help/);
   assert.match(app, /saveBookOrder/);
   assert.match(app, /deleteBook/);
   assert.match(app, /「\$\{book\.title\}」を削除しますか？/);
@@ -126,7 +126,7 @@ test("GitHub Pages用の静的アプリを生成する", async () => {
   assert.match(app, /tsundoku-dial-book-display-density/);
   assert.match(app, /shelfCategoryOrder/);
   assert.match(app, /data-category-row=\{category\}/);
-  assert.match(app, /bookViewMode === "shelf" &&/);
+  assert.match(app, /\(draggingBookId \|\| selectedBookId\) &&/);
   assert.match(app, /preventScrollWhileDragging/);
   assert.match(app, /if \(draggingBookIdRef\.current\) event\.preventDefault\(\)/);
   assert.doesNotMatch(app, /if \(classificationPanelOpen \|\| draggingBookIdRef\.current\) event\.preventDefault\(\)/);

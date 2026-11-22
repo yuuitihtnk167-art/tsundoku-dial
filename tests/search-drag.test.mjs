@@ -101,3 +101,25 @@ test("通常の本棚からつかむ場合は検索画面の引き継ぎ処理�
   assert.equal(calls.some(([name]) => name === "capture-main" || name === "close-search"), false);
   assert.equal(frames.length, 0);
 });
+
+test("通常の本棚でも移動せず離した場合は新しく表示された削除先を確定しない", () => {
+  const { context, calls, timers, event } = setup(false);
+  context.startBookPress(event, "book-1");
+  timers.shift()();
+  context.finishBookPress(event, "release");
+  assert.equal(context.selectedBookIdRef.current, "book-1");
+  assert.equal(calls.some(([name]) => ["resolve-drop", "classify", "delete"].includes(name)), false);
+});
+
+test("本を移動して固定削除エリアで離すと既存の削除確認へ進み、キャンセル時は進まない", () => {
+  for (const reason of ["release", "cancel"]) {
+    const { context, calls, timers, event } = setup(false);
+    context.startBookPress(event, "book-1");
+    timers.shift()();
+    context.dragMovedRef.current = true;
+    context.resolveBookDropTarget = () => ({ type: "delete" });
+    context.finishBookPress(event, reason);
+    assert.equal(calls.some(([name]) => name === "delete"), reason === "release");
+    assert.equal(calls.some(([name]) => name === "classify"), false);
+  }
+});

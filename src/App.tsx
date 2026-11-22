@@ -1364,7 +1364,7 @@ export function BookLibrary() {
 
     const draggedId = draggingBookIdRef.current;
     if (!draggedId) return;
-    const allowDrop = !pointerStart.fromSearch || dragMovedRef.current;
+    const allowDrop = dragMovedRef.current;
     const finalDropTarget = endReason === "release" && allowDrop
       ? resolveBookDropTarget(event.clientX, event.clientY, draggedId)
       : null;
@@ -1755,7 +1755,8 @@ export function BookLibrary() {
           <span className="brand-mark" aria-hidden="true">本</span>
           <span>積読ダイヤル</span>
         </a>
-        <div className="topbar-actions">
+        <div className="topbar-controls">
+          <div className="topbar-actions">
           <button
             className="add-button"
             type="button"
@@ -1781,6 +1782,24 @@ export function BookLibrary() {
           >
             <span aria-hidden="true">⚙</span> 設定
           </button>
+          </div>
+          {(draggingBookId || selectedBookId) && (
+            <div
+              className={deleteDropActive ? "header-trash-target is-drop-active" : "header-trash-target"}
+              data-book-drop="delete"
+              data-book-drop-container
+              aria-label="ここへ本をドロップして削除"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M4 7h16M9 7V4h6v3m-9 0 1 13h10l1-13M10 11v5m4-5v5" />
+              </svg>
+              <span className="header-trash-label">削除</span>
+              <span className="header-trash-help">
+                <span>{deleteDropActive ? "ここで本を離して" : "ここに本を移動して"}</span>
+                <span>{deleteDropActive ? "削除を確認してください" : "離すと削除できます"}</span>
+              </span>
+            </div>
+          )}
         </div>
       </header>
 
@@ -1816,14 +1835,6 @@ export function BookLibrary() {
                 <small>{books.filter((book) => getBookCategory(book) === category.id).length}冊</small>
               </button>
             ))}
-            <div
-              className={deleteDropActive ? "category-delete-zone is-drop-active" : "category-delete-zone"}
-              data-book-drop="delete"
-              aria-label="ここへ本をドロップして削除"
-            >
-              <span aria-hidden="true">×</span>
-              <strong>{deleteDropActive ? "ここで離して削除" : "削除"}</strong>
-            </div>
           </div>
           <p className="category-counter" aria-live="polite">
             <span aria-hidden="true" />
@@ -1839,19 +1850,6 @@ export function BookLibrary() {
         <div className="section-heading">
           <div className="shelf-actions">
             <p>{bookViewMode === "shelf" ? "分類名を長押しして本を登録。ドラッグで並び替え・分類・削除" : "ドラッグで並び替え・分類・削除（タッチは長押し）"}</p>
-            {bookViewMode === "shelf" && (
-              <div
-                className={deleteDropActive ? "shelf-trash-target is-drop-active" : "shelf-trash-target"}
-                data-book-drop="delete"
-                data-book-drop-container
-                aria-label="ここへ本をドロップして削除"
-              >
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M4 7h16M9 7V4h6v3m-9 0 1 13h10l1-13M10 11v5m4-5v5" />
-                </svg>
-                <span>{deleteDropActive ? "ここで離して削除" : "削除"}</span>
-              </div>
-            )}
           </div>
         </div>
 
