@@ -49,7 +49,7 @@ function setup(fromSearch = true) {
     removeDraggedBook: () => calls.push(["delete"]),
     persistCurrentBookOrder: () => calls.push(["reorder"]),
   };
-  for (const name of ["setSelectedBookId", "setDraggingBookId", "setDragPosition", "setDeleteTarget", "setCategoryTarget", "setActiveCategory"]) {
+  for (const name of ["setSelectedBookId", "setDraggingBookId", "setBookDragStarted", "setDragPosition", "setDeleteTarget", "setCategoryTarget", "setActiveCategory"]) {
     context[name] = (value) => calls.push([name, value]);
   }
   vm.runInNewContext(code, context);

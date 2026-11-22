@@ -244,8 +244,9 @@ function createBookAnalysisPrompt(input: { title: string; author: string; publis
 }
 
 const minimumCropSize = 8;
-const bookDragScrollEdge = 88;
-const bookDragMaximumScrollSpeed = 112;
+const bookDragScrollEdge = 48;
+const bookDragMaximumScrollSpeed = 12;
+const bookDragStartDistance = 12;
 
 function clamp(value: number, minimum: number, maximum: number) {
   return Math.min(maximum, Math.max(minimum, value));
@@ -333,6 +334,7 @@ export function BookLibrary() {
   const [classificationMessage, setClassificationMessage] = useState("");
   const [selectedBookId, setSelectedBookId] = useState<string | null>(null);
   const [draggingBookId, setDraggingBookId] = useState<string | null>(null);
+  const [bookDragStarted, setBookDragStarted] = useState(false);
   const [dragPosition, setDragPosition] = useState<{ x: number; y: number } | null>(null);
   const [deleteDropActive, setDeleteDropActive] = useState(false);
   const [title, setTitle] = useState("");
@@ -1025,6 +1027,7 @@ export function BookLibrary() {
   }
 
   function updateBookDragTargets(clientX: number, clientY: number, draggedId: string) {
+    if (!dragMovedRef.current) return;
     const element = document.elementFromPoint(clientX, clientY) as HTMLElement | null;
     const dropTarget = resolveBookDropTarget(clientX, clientY, draggedId);
     bookDropTargetRef.current = dropTarget;
@@ -1075,13 +1078,13 @@ export function BookLibrary() {
   }
 
   function startBookAutoScroll() {
-    if (bookAutoScrollFrameRef.current !== null) return;
+    if (!dragMovedRef.current || bookAutoScrollFrameRef.current !== null) return;
 
     const scrollFrame = () => {
       bookAutoScrollFrameRef.current = null;
       const pointer = bookPointerStartRef.current;
       const draggedId = draggingBookIdRef.current;
-      if (!pointer || !draggedId) return;
+      if (!pointer || !draggedId || !dragMovedRef.current) return;
 
       const element = document.elementFromPoint(
         pointer.currentX,
@@ -1117,7 +1120,6 @@ export function BookLibrary() {
       const pageScrolled = window.scrollY !== previousScrollY;
       if (!rowScrolled && !pageScrolled) return;
 
-      dragMovedRef.current = true;
       updateBookDragTargets(pointer.currentX, pointer.currentY, draggedId);
       bookAutoScrollFrameRef.current = window.requestAnimationFrame(scrollFrame);
     };
@@ -1131,6 +1133,7 @@ export function BookLibrary() {
     draggingBookIdRef.current = bookId;
     dragOriginRef.current = { x, y };
     dragMovedRef.current = false;
+    setBookDragStarted(false);
     bookDropTargetRef.current = null;
     lastReorderTargetRef.current = bookId;
     suppressBookClickRef.current = true;
@@ -1262,9 +1265,11 @@ export function BookLibrary() {
     const draggedId = draggingBookIdRef.current;
     if (!draggedId) return;
     event.preventDefault();
-    const dragOrigin = dragOriginRef.current;
-    if (dragOrigin && Math.hypot(event.clientX - dragOrigin.x, event.clientY - dragOrigin.y) > 4) {
+    if (!dragMovedRef.current) {
+      const dragOrigin = dragOriginRef.current;
+      if (!dragOrigin || Math.hypot(event.clientX - dragOrigin.x, event.clientY - dragOrigin.y) < bookDragStartDistance) return;
       dragMovedRef.current = true;
+      setBookDragStarted(true);
     }
     setDragPosition({ x: event.clientX, y: event.clientY });
     updateBookDragTargets(event.clientX, event.clientY, draggedId);
@@ -1385,6 +1390,7 @@ export function BookLibrary() {
     setDeleteTarget(false);
     setCategoryTarget(null);
     setDraggingBookId(null);
+    setBookDragStarted(false);
     setDragPosition(null);
     window.setTimeout(() => {
       suppressBookClickRef.current = false;
@@ -1422,7 +1428,7 @@ export function BookLibrary() {
           "book-card",
           compact ? "is-compact" : "",
           book.id === selectedBookId ? "is-selected" : "",
-          book.id === draggingBookId ? "is-dragging" : "",
+          book.id === draggingBookId && bookDragStarted ? "is-dragging" : "",
         ].filter(Boolean).join(" ")}
         type="button"
         key={book.id}
@@ -1913,7 +1919,7 @@ export function BookLibrary() {
         )}
       </section>
 
-      {draggingBookId && dragPosition && (() => {
+      {draggingBookId && bookDragStarted && dragPosition && (() => {
         const draggedBook = books.find((book) => book.id === draggingBookId);
         if (!draggedBook) return null;
         return (

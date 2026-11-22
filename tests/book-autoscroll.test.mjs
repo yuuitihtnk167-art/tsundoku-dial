@@ -17,7 +17,7 @@ const compiled = transpileModule(helpers + scrollFunction, {
   compilerOptions: { module: ModuleKind.ESNext, target: ScriptTarget.ES2022 },
 }).outputText;
 
-function createDrag({ x = 395, inShelf = true, dropType = "category" } = {}) {
+function createDrag({ x = 395, inShelf = true, dropType = "category", moved = true } = {}) {
   const frames = [];
   const targets = [];
   const pageScrolls = [];
@@ -31,7 +31,7 @@ function createDrag({ x = 395, inShelf = true, dropType = "category" } = {}) {
     bookAutoScrollFrameRef: { current: null },
     bookPointerStartRef: { current: { currentX: x, currentY: 300 } },
     draggingBookIdRef: { current: "book-1" },
-    dragMovedRef: { current: false },
+    dragMovedRef: { current: moved },
     document: {
       elementFromPoint: () => ({
         closest(selector) {
@@ -84,4 +84,20 @@ test("本棚以外の分類パネルと削除領域では自動スクロール�
     assert.equal(targets.length, 0);
     assert.equal(pageScrolls.length, 0);
   }
+});
+
+test("長押しだけで移動を始めていない間は端でも自動スクロールしない", () => {
+  const { row, frames, targets } = createDrag({ moved: false });
+  assert.equal(frames.length, 0);
+  assert.equal(row.scrollLeft, 400);
+  assert.equal(targets.length, 0);
+});
+
+test("つかみ直して移動開始待ちに戻ると、予約済みのスクロールも止まる", () => {
+  const { context, row, frames, targets } = createDrag();
+  context.dragMovedRef.current = false;
+  frames.shift()();
+  assert.equal(row.scrollLeft, 400);
+  assert.equal(targets.length, 0);
+  assert.equal(frames.length, 0);
 });
