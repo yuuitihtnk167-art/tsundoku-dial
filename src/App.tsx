@@ -73,7 +73,8 @@ type BookPointerStart = {
   pointerId: number;
   pointerType: string;
   bookId: string;
-  source: HTMLButtonElement;
+  source: HTMLElement;
+  fromSearch: boolean;
   startX: number;
   startY: number;
   currentX: number;
@@ -1135,9 +1136,30 @@ export function BookLibrary() {
     suppressBookClickRef.current = true;
     setDraggingBookId(bookId);
     setDragPosition({ x, y });
+
+    const pointer = bookPointerStartRef.current;
+    const searchDialog = searchDialogRef.current;
+    if (pointer?.fromSearch && searchDialog?.open) {
+      const book = booksRef.current.find((item) => item.id === bookId);
+      if (book) setActiveCategory(getBookCategory(book));
+      const captureSource = pointer.source.closest<HTMLElement>("main");
+      searchDialog.close();
+      // Keep the same gesture alive after its search result becomes hidden.
+      if (captureSource) {
+        captureSource.setPointerCapture(pointer.pointerId);
+        pointer.source = captureSource;
+      }
+      window.requestAnimationFrame(() => {
+        if (selectedBookIdRef.current !== bookId) return;
+        const shelfBook = Array.from(
+          document.querySelectorAll<HTMLElement>(".shelf [data-book-id]"),
+        ).find((element) => element.dataset.bookId === bookId);
+        shelfBook?.scrollIntoView({ behavior: "instant", block: "center", inline: "center" });
+      });
+    }
   }
 
-  function listenForBookDragEvents(source: HTMLButtonElement, pointerId: number) {
+  function listenForBookDragEvents(source: HTMLElement, pointerId: number) {
     bookDragListenersCleanupRef.current?.();
 
     const handlePointerMove = (event: PointerEvent) => {
@@ -1193,6 +1215,7 @@ export function BookLibrary() {
       pointerType: event.pointerType,
       bookId,
       source: event.currentTarget,
+      fromSearch: Boolean(event.currentTarget.closest(".search-dialog")),
       startX: event.clientX,
       startY: event.clientY,
       currentX: event.clientX,
@@ -1200,7 +1223,7 @@ export function BookLibrary() {
     };
     if (selectedBookIdRef.current === bookId) {
       selectBookForDragging(bookId, event.clientX, event.clientY);
-      listenForBookDragEvents(event.currentTarget, event.pointerId);
+      listenForBookDragEvents(bookPointerStartRef.current.source, event.pointerId);
       return;
     }
     if (event.pointerType === "mouse") return;
@@ -1341,12 +1364,13 @@ export function BookLibrary() {
 
     const draggedId = draggingBookIdRef.current;
     if (!draggedId) return;
-    const finalDropTarget = endReason === "release"
+    const allowDrop = !pointerStart.fromSearch || dragMovedRef.current;
+    const finalDropTarget = endReason === "release" && allowDrop
       ? resolveBookDropTarget(event.clientX, event.clientY, draggedId)
       : null;
     const dropTarget = resolveCompletedDropTarget(
       finalDropTarget,
-      bookDropTargetRef.current,
+      allowDrop ? bookDropTargetRef.current : null,
       endReason,
     );
     const shouldDelete = dropTarget?.type === "delete";
@@ -1939,6 +1963,7 @@ export function BookLibrary() {
             aria-describedby="search-help"
           />
           <p id="search-help">すべての登録先から検索します。スペースで区切ると、すべてのキーワードを含む本を探せます。</p>
+          <p>本をタップすると詳細を表示。長押しすると、本棚でつかんで移動・削除できます。</p>
           <p className="search-count" role="status">
             {loading ? "本棚をひらいています…" : searchQuery.trim() ? `${searchResults.length}冊見つかりました` : "キーワードを入力してください"}
           </p>
@@ -1948,8 +1973,20 @@ export function BookLibrary() {
             <ul className="search-results">
               {searchResults.map((book) => (
                 <li key={book.id}>
-                  <button className="search-result" type="button" onClick={() => openBook(book)}>
-                    <img src={book.coverUrl} alt="" loading="lazy" />
+                  <button
+                    className={book.id === selectedBookId ? "search-result is-selected" : "search-result"}
+                    type="button"
+                    data-book-id={book.id}
+                    aria-pressed={book.id === selectedBookId}
+                    onClick={() => openBook(book)}
+                    onContextMenu={(event) => event.preventDefault()}
+                    onDragStart={(event) => event.preventDefault()}
+                    onPointerDown={(event) => startBookPress(event, book.id)}
+                    onPointerMove={moveBook}
+                    onPointerUp={(event) => finishBookPress(event, "release")}
+                    onPointerCancel={(event) => finishBookPress(event, "cancel")}
+                  >
+                    <img src={book.coverUrl} alt="" loading="lazy" draggable={false} />
                     <span className="search-result-copy">
                       <span className="search-result-category">
                         {bookCategories.find((category) => category.id === getBookCategory(book))?.label}
