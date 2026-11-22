@@ -36,6 +36,7 @@ import {
 } from "./book-drop";
 import { lookupBookByIsbn } from "./book-lookup";
 import { canSetBookCategory, isOwnedBook } from "./book-category";
+import { searchBooks } from "./book-search";
 import { getTitleMatch } from "./book-match";
 import { parseBookImport } from "./book-import";
 import { IsbnScanner } from "./IsbnScanner";
@@ -307,6 +308,7 @@ export function BookLibrary() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [selectedBook, setSelectedBook] = useState<Book | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [editingBookId, setEditingBookId] = useState<string | null>(null);
   const [photo, setPhoto] = useState<Blob | null>(null);
@@ -349,6 +351,8 @@ export function BookLibrary() {
   const addDialogRef = useRef<HTMLDialogElement>(null);
   const detailDialogRef = useRef<HTMLDialogElement>(null);
   const settingsDialogRef = useRef<HTMLDialogElement>(null);
+  const searchDialogRef = useRef<HTMLDialogElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const bookLookupAbortRef = useRef<AbortController | null>(null);
   const pastedCoverRef = useRef(false);
   const duplicateWarningRef = useRef<HTMLElement>(null);
@@ -384,6 +388,7 @@ export function BookLibrary() {
   const activeCategoryOption =
     bookCategories.find((category) => category.id === activeCategory) ?? bookCategories[0];
   const visibleBooks = books.filter((book) => getBookCategory(book) === activeCategory);
+  const searchResults = searchBooks(books, searchQuery);
   const editingBook = books.find((book) => book.id === editingBookId);
   const registrationCategories = bookCategories.filter(
     (category) => !editingBook || canSetBookCategory(editingBook, category.id),
@@ -1379,6 +1384,12 @@ export function BookLibrary() {
     setSelectedBook(book);
   }
 
+  function openSearchDialog() {
+    clearBookSelection();
+    searchDialogRef.current?.showModal();
+    searchInputRef.current?.focus();
+  }
+
   function renderBookCard(book: Book, index: number) {
     const compact = bookDisplayDensity === "compact";
     return (
@@ -1730,6 +1741,15 @@ export function BookLibrary() {
             <span aria-hidden="true">＋</span> 本を登録する
           </button>
           <button
+            className="search-button"
+            type="button"
+            aria-haspopup="dialog"
+            onClick={openSearchDialog}
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" /><path d="m16 16 5 5" /></svg>
+            検索
+          </button>
+          <button
             className="settings-button"
             type="button"
             aria-haspopup="dialog"
@@ -1901,6 +1921,56 @@ export function BookLibrary() {
           </div>
         );
       })()}
+
+      <dialog className="search-dialog" ref={searchDialogRef} aria-labelledby="search-title">
+        <div className="search-heading">
+          <div className="dialog-heading">
+            <h2 id="search-title">本を検索</h2>
+            <button className="close-button" type="button" onClick={() => searchDialogRef.current?.close()} aria-label="検索を閉じる">×</button>
+          </div>
+          <label htmlFor="book-search">キーワード</label>
+          <input
+            id="book-search"
+            ref={searchInputRef}
+            type="search"
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
+            placeholder="タイトル・著者・出版社・メモ・ISBN"
+            aria-describedby="search-help"
+          />
+          <p id="search-help">すべての登録先から検索します。スペースで区切ると、すべてのキーワードを含む本を探せます。</p>
+          <p className="search-count" role="status">
+            {loading ? "本棚をひらいています…" : searchQuery.trim() ? `${searchResults.length}冊見つかりました` : "キーワードを入力してください"}
+          </p>
+        </div>
+        <div className="search-body">
+          {!loading && searchQuery.trim() && (searchResults.length > 0 ? (
+            <ul className="search-results">
+              {searchResults.map((book) => (
+                <li key={book.id}>
+                  <button className="search-result" type="button" onClick={() => openBook(book)}>
+                    <img src={book.coverUrl} alt="" loading="lazy" />
+                    <span className="search-result-copy">
+                      <span className="search-result-category">
+                        {bookCategories.find((category) => category.id === getBookCategory(book))?.label}
+                        {isOwnedBook(book) && getBookCategory(book) === "reading" && "（持っている）"}
+                      </span>
+                      <strong>{book.title}</strong>
+                      {(book.author || book.publisher) && <span className="search-result-meta">{[book.author, book.publisher].filter(Boolean).join(" ／ ")}</span>}
+                      {book.notes && <span className="search-result-notes">{book.notes}</span>}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <div className="search-empty">
+              <p>該当する本がありません。</p>
+              <p>キーワードを短くするか、別の言葉で検索してください。</p>
+            </div>
+          ))}
+        </div>
+      </dialog>
 
       <dialog
         className="settings-dialog"
