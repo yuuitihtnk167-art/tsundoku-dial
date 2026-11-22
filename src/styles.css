@@ -48,9 +48,9 @@ button { color: inherit; }
 .topbar-actions { display: flex; align-items: center; gap: 9px; }
 .topbar-controls { display: grid; gap: 12px; min-width: 0; }
 .topbar-actions > button { height: var(--header-button-height); }
-.header-trash-target { display: grid; grid-template-columns: 26px auto minmax(0, 1fr); align-items: center; gap: 8px; width: 100%; height: var(--header-button-height); padding: 6px 12px; border: 2px solid var(--brass); border-radius: 9px; background: linear-gradient(#fff7df, #ded0ab); color: var(--forest); font-size: 12px; font-weight: 800; box-shadow: inset 0 0 0 2px rgba(255,255,255,.55), 0 4px 0 #75572d, 0 7px 14px rgba(73,49,31,.18); }
+.header-trash-target { display: grid; grid-template-columns: minmax(0, 1fr) max-content; align-items: center; gap: 8px; width: 100%; height: var(--header-button-height); padding: 6px 12px; border: 2px solid var(--brass); border-radius: 9px; background: linear-gradient(#fff7df, #ded0ab); color: var(--forest); font-size: 12px; font-weight: 800; box-shadow: inset 0 0 0 2px rgba(255,255,255,.55), 0 4px 0 #75572d, 0 7px 14px rgba(73,49,31,.18); }
 .header-trash-target svg { width: 26px; height: 26px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-.header-trash-label { white-space: nowrap; }
+.header-trash-label { display: flex; align-items: center; justify-content: center; gap: 8px; min-width: 0; white-space: nowrap; }
 .header-trash-help { display: grid; justify-self: end; min-width: 0; font-size: clamp(9px, 2.8vw, 11px); font-weight: 600; line-height: 1.25; }
 .header-trash-help > span { white-space: nowrap; }
 .header-trash-target.is-drop-active { border-color: var(--forest); background: linear-gradient(#f4ff94, var(--lime)); box-shadow: inset 0 0 0 2px rgba(255,255,255,.55), 0 0 0 3px rgba(30,74,56,.2), 0 4px 0 #75572d; }

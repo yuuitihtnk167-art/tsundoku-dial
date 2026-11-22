@@ -1791,10 +1791,12 @@ export function BookLibrary() {
               data-book-drop-container
               aria-label="ここへ本をドロップして削除"
             >
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M4 7h16M9 7V4h6v3m-9 0 1 13h10l1-13M10 11v5m4-5v5" />
-              </svg>
-              <span className="header-trash-label">削除</span>
+              <span className="header-trash-label">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M4 7h16M9 7V4h6v3m-9 0 1 13h10l1-13M10 11v5m4-5v5" />
+                </svg>
+                <span>削除</span>
+              </span>
               <span className="header-trash-help">
                 <span>{deleteDropActive ? "ここで本を離して" : "ここに本を移動して"}</span>
                 <span>{deleteDropActive ? "削除を確認してください" : "離すと削除できます"}</span>
